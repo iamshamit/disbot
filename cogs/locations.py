@@ -25,10 +25,12 @@ class LocationCompareModal(discord.ui.Modal, title="Compare Location"):
         max_length=60,
     )
 
-    def __init__(self, first_loc, dank_client):
+    def __init__(self, first_loc, dank_client, location, dank_client_for_back):
         super().__init__()
         self.first = first_loc
         self.dc = dank_client
+        self.location = location
+        self.dank_client = dank_client_for_back
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         name = self.second_loc.value.strip()
@@ -39,7 +41,26 @@ class LocationCompareModal(discord.ui.Modal, title="Compare Location"):
             )
             return
         await interaction.response.edit_message(
-            embed=build_location_compare_embed(self.first, second), view=None
+            embed=build_location_compare_embed(self.first, second),
+            view=BackToLocationView(location=self.location, dank_client=self.dank_client),
+        )
+
+
+class BackToLocationView(discord.ui.View):
+    def __init__(self, location, dank_client):
+        super().__init__(timeout=300)
+        self.location = location
+        self.dank_client = dank_client
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True  # type: ignore[attr-defined]
+
+    @discord.ui.button(label="📍 Back to Location", style=discord.ButtonStyle.secondary)
+    async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            embed=build_location_embed(self.location, self.dank_client),
+            view=LocationView(self.location, self.dank_client),
         )
 
 
@@ -58,7 +79,13 @@ class LocationView(discord.ui.View):
         creatures_sorted = sorted(
             creatures,
             key=lambda c: -rarity_rank(c.extra.get("rarity", "Common"))
-        )[:25]
+        )
+        total = len(creatures_sorted)
+        if total > 25:
+            placeholder = f"🐟 Fish Pool — Showing 25 of {total} ▾"
+            creatures_sorted = creatures_sorted[:25]
+        else:
+            placeholder = f"🐟 Fish Pool ({total} fish) ▾"
         options = []
         for c in creatures_sorted:
             rarity = c.extra.get("rarity", "Common")
@@ -72,7 +99,7 @@ class LocationView(discord.ui.View):
                 )
             )
         select = discord.ui.Select(
-            placeholder=f"🐟 Fish Pool ({len(creatures)} creatures) ▾",
+            placeholder=placeholder,
             options=options,
             row=0,
         )
@@ -81,7 +108,6 @@ class LocationView(discord.ui.View):
         self._selected_creature_id: str | None = None
 
     async def _fish_selected(self, interaction: discord.Interaction):
-        select: discord.ui.Select = interaction.data  # type: ignore
         chosen_id = interaction.data["values"][0]  # type: ignore
         creature = self.dc.fish_by_id.get(chosen_id)
         if creature is None:
@@ -95,7 +121,8 @@ class LocationView(discord.ui.View):
         rarity = creature.extra.get("rarity", "Common")
         flavor = creature.extra.get("flavor", "")
         snippet = f"\n\n{rarity_emoji(rarity)} **{creature.name}** — {rarity}\n*{flavor[:120]}*" if flavor else f"\n\n{rarity_emoji(rarity)} **{creature.name}** — {rarity}"
-        embed.description = (embed.description or "")[:3700] + snippet
+        max_body = 4096 - len(snippet)
+        embed.description = (embed.description or "")[:max_body] + snippet
         await interaction.response.edit_message(embed=embed, view=self)
 
     async def on_timeout(self) -> None:
@@ -129,7 +156,9 @@ class LocationView(discord.ui.View):
 
     @discord.ui.button(label="⚔️ Compare", style=discord.ButtonStyle.primary, row=1)
     async def compare_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(LocationCompareModal(self.loc, self.dc))
+        await interaction.response.send_modal(
+            LocationCompareModal(self.loc, self.dc, location=self.loc, dank_client_for_back=self.dc)
+        )
 
     @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def sim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):

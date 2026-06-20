@@ -355,7 +355,7 @@ async def test_locationview_delete_btn_deletes_message():
     interaction.message = AsyncMock()
     interaction.message.delete = AsyncMock()
     await view.delete_btn.callback(interaction)
-    interaction.message.delete.assert_called_once()
+    interaction.message.delete.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -379,7 +379,7 @@ def test_locationcomparemodal_stores_first_and_client():
     from cogs.locations import LocationCompareModal
     loc = make_location()
     dc = make_mock_dank_client()
-    modal = LocationCompareModal(loc, dc)
+    modal = LocationCompareModal(loc, dc, location=loc, dank_client_for_back=dc)
     assert modal.first is loc
     assert modal.dc is dc
 
@@ -389,7 +389,7 @@ async def test_locationcomparemodal_on_submit_not_found_sends_ephemeral():
     from cogs.locations import LocationCompareModal
     loc = make_location()
     dc = make_mock_dank_client()
-    modal = LocationCompareModal(loc, dc)
+    modal = LocationCompareModal(loc, dc, location=loc, dank_client_for_back=dc)
     modal.second_loc._value = "NonExistentPlace"
     interaction = make_interaction()
     await modal.on_submit(interaction)
@@ -399,17 +399,17 @@ async def test_locationcomparemodal_on_submit_not_found_sends_ephemeral():
 
 @pytest.mark.asyncio
 async def test_locationcomparemodal_on_submit_found_edits_message():
-    from cogs.locations import LocationCompareModal
+    from cogs.locations import LocationCompareModal, BackToLocationView
     loc1 = make_location(id="sunken_ship", name="Sunken Ship")
     loc2 = make_location(id="murky_pond", name="Murky Pond")
     dc = make_mock_dank_client(locations=[loc1, loc2])
-    modal = LocationCompareModal(loc1, dc)
+    modal = LocationCompareModal(loc1, dc, location=loc1, dank_client_for_back=dc)
     modal.second_loc._value = "Murky Pond"
     interaction = make_interaction()
     await modal.on_submit(interaction)
     interaction.response.edit_message.assert_called_once()
     call_kwargs = interaction.response.edit_message.call_args
-    assert call_kwargs.kwargs.get("view") is None
+    assert isinstance(call_kwargs.kwargs.get("view"), BackToLocationView)
     embed = call_kwargs.kwargs["embed"]
     assert "Sunken Ship" in embed.title
     assert "Murky Pond" in embed.title
