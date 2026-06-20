@@ -462,7 +462,7 @@ async def test_fishcomparemodal_on_submit_not_found_sends_ephemeral():
 
 @pytest.mark.asyncio
 async def test_fishcomparemodal_on_submit_found_edits_message():
-    from cogs.fish import FishCompareModal
+    from cogs.fish import FishCompareModal, BackToFishView
     c1 = make_creature(id="goldfish", name="Goldfish")
     c2 = make_creature(id="koi", name="Koi", rarity="Uncommon")
     dc = make_mock_dank_client(creatures=[c1, c2])
@@ -472,7 +472,7 @@ async def test_fishcomparemodal_on_submit_found_edits_message():
     await modal.on_submit(interaction)
     interaction.response.edit_message.assert_called_once()
     call_kwargs = interaction.response.edit_message.call_args
-    assert call_kwargs.kwargs.get("view") is None
+    assert isinstance(call_kwargs.kwargs.get("view"), BackToFishView)
     embed = call_kwargs.kwargs["embed"]
     assert "Goldfish" in embed.title
     assert "Koi" in embed.title
@@ -631,7 +631,7 @@ async def test_fishlistview_sort_select_callback_updates_sort():
     interaction = make_interaction()
 
     # Set _values on the actual select item to control .values property
-    view.sort_select._values = ["rarity_asc"]
+    view.sort_select._values = ["rarity_asc"]  # discord.py internal; only safe way to inject select values in tests
     await view.sort_select.callback(interaction)
 
     assert view.sort == "rarity_asc"
@@ -647,7 +647,7 @@ async def test_fishlistview_rarity_select_resets_page_to_zero():
     view.page = 2
 
     interaction = make_interaction()
-    view.rarity_select._values = ["Uncommon"]
+    view.rarity_select._values = ["Uncommon"]  # discord.py internal; only safe way to inject select values in tests
     await view.rarity_select.callback(interaction)
 
     assert view.page == 0

@@ -11,7 +11,7 @@ from utils.embeds import (
     build_fishlist_embed,
 )
 from utils.views import DynamicPaginationView
-from utils.formatters import RARITY_ORDER, is_available_now, rarity_rank
+from utils.formatters import rarity_rank
 
 _PRELOAD_GUARD_MSG = "⏳ Data is still loading, please try again in a moment."
 _NOT_FOUND_MSG = "❌ No fish named **{name}** found. Try `/fishlist` to browse."
@@ -40,7 +40,7 @@ class FishCompareModal(discord.ui.Modal, title="Compare Fish"):
             )
             return
         await interaction.response.edit_message(
-            embed=build_fish_compare_embed(self.first, second), view=None
+            embed=build_fish_compare_embed(self.first, second), view=BackToFishView(creature=self.first, dank_client=self.dc)
         )
 
 
