@@ -22,6 +22,7 @@ class DankMemerGameClient:
         self.npc_by_id: Dict[str, Any] = {}
         self.npc_by_name: Dict[str, Any] = {}
         self.event_by_id: Dict[str, Any] = {}
+        self.location_creature_map: Dict[str, list] = {}
 
     async def connect(self) -> None:
         if self._client is not None:
@@ -108,6 +109,16 @@ class DankMemerGameClient:
                 self.event_by_id[event.id] = event
         except Exception:
             logger.warning("Failed to preload events", exc_info=True)
+
+        # Build cross-reference: location → resolved Creature objects
+        for loc_id, loc in self.location_by_id.items():
+            creature_ids = loc.extra.get("creatures") or [] if hasattr(loc.extra, "get") else []
+            self.location_creature_map[loc_id] = [
+                self.fish_by_id[cid]
+                for cid in creature_ids
+                if cid in self.fish_by_id
+            ]
+        logger.debug("Built location_creature_map for %d locations", len(self.location_creature_map))
 
         logger.info(
             "Preload complete: %d fish, %d locations, %d tools, %d baits, %d npcs, %d events",
