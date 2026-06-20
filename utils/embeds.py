@@ -32,12 +32,12 @@ class EmbedBuilder:
         return cls._base(title=f"\u26a0\ufe0f {title}", description=description, color=cls.WARNING_COLOR)
 
 
-from datetime import time as dt_time
-import discord
+from datetime import time as dt_time, datetime, timezone
 from utils.formatters import (
     rarity_color, rarity_emoji, rarity_rank,
     availability_bar, is_available_now, format_time_window,
     winner_mark, COMPARE_COLOR, progress_bar, RARITY_EMOJI, RARITY_ORDER,
+    RARITY_COLORS,
 )
 
 _SEP = "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
@@ -173,7 +173,6 @@ def build_peak_hours_embed(creature) -> discord.Embed:
         embed.description = "Availability data unavailable."
         return embed
 
-    from datetime import datetime, timezone
     current_utc = datetime.now(timezone.utc)
     now_h = current_utc.hour
 
@@ -213,7 +212,6 @@ def build_fishlist_embed(
     sort: str,
     rarity_filter: str,
 ) -> discord.Embed:
-    from utils.formatters import COMPARE_COLOR, RARITY_COLORS
     color = RARITY_COLORS.get(rarity_filter, COMPARE_COLOR)
     title = f"All Fish  ({len(creatures)} total)" if rarity_filter == "All" else f"{rarity_filter} Fish  ({len(creatures)})"
 

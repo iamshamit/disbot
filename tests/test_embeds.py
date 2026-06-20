@@ -36,6 +36,8 @@ def test_build_fish_embed_has_availability(creature):
     from utils.embeds import build_fish_embed
     embed = build_fish_embed(creature, make_mock_client())
     assert "AVAILABILITY" in embed.description
+    assert "▐" in embed.description  # bar prefix
+    assert "▌" in embed.description  # bar suffix
 
 def test_build_fish_embed_no_variants_section(creature):
     from utils.embeds import build_fish_embed
@@ -79,14 +81,23 @@ def test_build_fish_compare_embed_winner_marked():
     # c2 has more locations → should have ✓
     assert "✓" in embed.description
 
+def test_build_fish_compare_embed_uses_code_block():
+    from utils.embeds import build_fish_compare_embed
+    c1 = make_creature(name="Goldfish")
+    c2 = make_creature(id="koi", name="Koi", rarity="Rare")
+    embed = build_fish_compare_embed(c1, c2)
+    assert "```" in embed.description  # comparison is in a code block
+
 
 # --- Peak hours embed ---
 
 def test_build_peak_hours_embed_contains_grid(creature):
     from utils.embeds import build_peak_hours_embed
     embed = build_peak_hours_embed(creature)
-    assert "00" in embed.description
-    assert "23" in embed.description
+    desc = embed.description
+    assert "00 01 02" in desc   # first row header present
+    assert "12 13 14" in desc   # second row header present
+    assert "✅" in desc or "❌" in desc  # availability marks present
 
 def test_build_peak_hours_embed_full_day(fullday_creature):
     from utils.embeds import build_peak_hours_embed
@@ -108,3 +119,11 @@ def test_build_fishlist_embed_footer_has_page():
     embed = build_fishlist_embed(creatures, page=0, total_pages=3, sort="alphabetical", rarity_filter="All")
     assert "1" in embed.footer.text
     assert "3" in embed.footer.text
+
+def test_build_fishlist_embed_footer_format():
+    from utils.embeds import build_fishlist_embed
+    creatures = [make_creature()]
+    embed = build_fishlist_embed(creatures, page=0, total_pages=3, sort="alphabetical", rarity_filter="All")
+    assert "Page 1 / 3" in embed.footer.text
+    assert "Sort: alphabetical" in embed.footer.text
+    assert "Filter: All" in embed.footer.text
