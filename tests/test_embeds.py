@@ -127,3 +127,104 @@ def test_build_fishlist_embed_footer_format():
     assert "Page 1 / 3" in embed.footer.text
     assert "Sort: alphabetical" in embed.footer.text
     assert "Filter: All" in embed.footer.text
+
+
+# --- Location embeds ---
+
+def test_build_location_embed_title(location):
+    from utils.embeds import build_location_embed
+    embed = build_location_embed(location, make_mock_client())
+    assert embed.title == "Sunken Ship"
+
+def test_build_location_embed_has_stats(location):
+    from utils.embeds import build_location_embed
+    embed = build_location_embed(location, make_mock_client())
+    assert "Fail" in embed.description
+    assert "Mine" in embed.description
+
+def test_build_location_embed_rarity_distribution(location):
+    from utils.embeds import build_location_embed
+    embed = build_location_embed(location, make_mock_client())
+    assert "RARITY" in embed.description
+
+def test_build_location_embed_temporary_badge():
+    from utils.embeds import build_location_embed
+    loc = make_location(temporary=True)
+    embed = build_location_embed(loc, make_mock_client())
+    assert "Temporary" in embed.description
+
+def test_build_location_compare_embed_title():
+    from utils.embeds import build_location_compare_embed
+    l1 = make_location(name="Ocean")
+    l2 = make_location(id="lake", name="Lake")
+    embed = build_location_compare_embed(l1, l2)
+    assert "Ocean" in embed.title
+    assert "Lake" in embed.title
+
+def test_build_locations_list_embed_title():
+    from utils.embeds import build_locations_list_embed
+    locs = [make_location()]
+    embed = build_locations_list_embed(locs, 0, 1, "name", "All")
+    assert "Location" in embed.title
+
+
+# --- Tool embeds ---
+
+def test_build_tool_embed_title(tool):
+    from utils.embeds import build_tool_embed
+    embed = build_tool_embed(tool)
+    assert embed.title == "Fishing Rod"
+
+def test_build_tool_embed_has_buffs(tool):
+    from utils.embeds import build_tool_embed
+    embed = build_tool_embed(tool)
+    assert "BUFF" in embed.description
+
+def test_build_tool_embed_bait_support(tool):
+    from utils.embeds import build_tool_embed
+    embed = build_tool_embed(tool)
+    assert "✅" in embed.description
+
+def test_build_toolcompare_embed_contains_all_tools():
+    from utils.embeds import build_toolcompare_embed
+    t1 = make_tool(name="Rod")
+    t2 = make_tool(id="harpoon", name="Harpoon", baits=False, usage=50)
+    embed = build_toolcompare_embed([t1, t2])
+    assert "Rod" in embed.description
+    assert "Harpoon" in embed.description
+
+
+# --- Bait embeds ---
+
+def test_build_bait_embed_title(bait):
+    from utils.embeds import build_bait_embed
+    embed = build_bait_embed(bait)
+    assert embed.title == "Glitter Bait"
+
+def test_build_bait_embed_explanation(bait):
+    from utils.embeds import build_bait_embed
+    embed = build_bait_embed(bait)
+    assert "Rare catch" in embed.description
+
+def test_build_bait_compare_embed_title():
+    from utils.embeds import build_bait_compare_embed
+    b1 = make_bait(name="Glitter")
+    b2 = make_bait(id="gold", name="Gold Bait", explanation="Doubles Mythical catch.", idle=False, usage=10)
+    embed = build_bait_compare_embed(b1, b2)
+    assert "Glitter" in embed.title and "Gold Bait" in embed.title
+
+
+# --- NPC embeds ---
+
+def test_build_npc_embed_title():
+    from utils.embeds import build_npc_embed
+    from unittest.mock import MagicMock
+    from dankmemer.utils import DotDict
+    from dankmemer.routes.npcs import NPC  # may vary; adjust if import path differs
+    npc = MagicMock()
+    npc.name = "Poseidon"
+    npc.imageURL = "https://example.com/npc.png"
+    npc.id = "poseidon"
+    npc.extra = DotDict({"description": "God of the sea.", "locations": ["loc1"]})
+    embed = build_npc_embed(npc)
+    assert embed.title == "Poseidon"
