@@ -88,7 +88,7 @@ def format_time_window(creature) -> str:
         return "Unknown"
     start_h, end_h = start.hour, end.hour
     hours = (end_h - start_h) if start_h <= end_h else (24 - start_h + end_h)
-    return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')} UTC  ·  {hours}h"
+    return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')} UTC · {hours}h"
 
 
 def winner_mark(a: Any, b: Any, higher_is_better: bool = True) -> tuple[str, str]:

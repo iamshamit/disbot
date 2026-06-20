@@ -87,10 +87,7 @@ def test_format_time_window_full_day():
 
 def test_format_time_window_normal():
     c = make_creature(start_h=0, end_h=6, full_day=False)
-    result = format_time_window(c)
-    assert "00:00" in result
-    assert "06:00" in result
-    assert "6h" in result
+    assert format_time_window(c) == "00:00–06:00 UTC · 6h"
 
 def test_winner_mark_higher_wins():
     a, b = winner_mark(10, 5)
