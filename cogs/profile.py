@@ -51,19 +51,6 @@ class WeatherModal(discord.ui.Modal, title="Set Current Weather"):
         await interaction.response.defer()
 
 
-class FavFishModal(discord.ui.Modal, title="Set Favourite Fish"):
-    fish: discord.ui.TextInput = discord.ui.TextInput(
-        label="Favourite Fish", placeholder="e.g. Goldfish", required=False, max_length=100
-    )
-
-    def __init__(self, parent_view):
-        super().__init__()
-        self.parent_view = parent_view
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        self.parent_view._pending_fav_fish = self.fish.value.strip() or None
-        await interaction.response.defer()
-
 
 # ---------------------------------------------------------------------------
 # EditSkillsModal (integers — text input is the right control)
@@ -323,16 +310,25 @@ class EditFavsView(discord.ui.View):
         self.db = db
         self.member = member
         self.dc = dc
-        self._pending_fav_fish = _UNSET
 
         NONE_OPT = discord.SelectOption(label="— None —", value="__clear__")
+
+        fish_opts = [NONE_OPT] + [
+            discord.SelectOption(label=f.name, value=f.id)
+            for f in sorted(dc.fish_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._fish_sel = discord.ui.Select(
+            placeholder="🐟 Fav Fish…", options=fish_opts, min_values=0, max_values=1, row=0
+        )
+        self._fish_sel.callback = self._defer
+        self.add_item(self._fish_sel)
 
         loc_opts = [NONE_OPT] + [
             discord.SelectOption(label=l.name, value=l.id)
             for l in sorted(dc.location_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._loc_sel = discord.ui.Select(
-            placeholder="📍 Fav Location…", options=loc_opts, min_values=0, max_values=1, row=0
+            placeholder="📍 Fav Location…", options=loc_opts, min_values=0, max_values=1, row=1
         )
         self._loc_sel.callback = self._defer
         self.add_item(self._loc_sel)
@@ -342,7 +338,7 @@ class EditFavsView(discord.ui.View):
             for t in sorted(dc.tool_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._tool_sel = discord.ui.Select(
-            placeholder="🔧 Fav Tool…", options=tool_opts, min_values=0, max_values=1, row=1
+            placeholder="🔧 Fav Tool…", options=tool_opts, min_values=0, max_values=1, row=2
         )
         self._tool_sel.callback = self._defer
         self.add_item(self._tool_sel)
@@ -352,7 +348,7 @@ class EditFavsView(discord.ui.View):
             for b in sorted(dc.bait_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._bait_sel = discord.ui.Select(
-            placeholder="🪱 Fav Bait…", options=bait_opts, min_values=0, max_values=1, row=2
+            placeholder="🪱 Fav Bait…", options=bait_opts, min_values=0, max_values=1, row=3
         )
         self._bait_sel.callback = self._defer
         self.add_item(self._bait_sel)
@@ -360,15 +356,17 @@ class EditFavsView(discord.ui.View):
     async def _defer(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
 
-    @discord.ui.button(label="🐟 Set Fav Fish", style=discord.ButtonStyle.secondary, row=3)
-    async def set_fav_fish_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(FavFishModal(self))
-
     @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=4)
     async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         updates: dict = {}
-        if self._pending_fav_fish is not _UNSET:
-            updates["favorite_fish"] = self._pending_fav_fish
+        if self._fish_sel.values:
+            v = self._fish_sel.values[0]
+            if v == "__clear__":
+                updates["favorite_fish"] = None
+            else:
+                f = self.dc.fish_by_id.get(v)
+                if f:
+                    updates["favorite_fish"] = f.name
         if self._loc_sel.values:
             v = self._loc_sel.values[0]
             if v == "__clear__":
