@@ -646,6 +646,7 @@ def _relative_time(ts_str: str | None) -> str:
 
 
 def build_history_embed(rows: list, member, tab: str) -> discord.Embed:
+    import json as _hj
     tab_labels = {
         "fish": "\U0001f420 Fish",
         "location": "\U0001f4cd Locations",
@@ -668,7 +669,6 @@ def build_history_embed(rows: list, member, tab: str) -> discord.Embed:
         if tab == "simulation":
             fail_pct = ""
             try:
-                import json as _hj
                 d = _hj.loads(row["data"] or "{}")
                 fail_pct = f"  ❌ {d.get('failChance', 0):.1f}%"
             except Exception:

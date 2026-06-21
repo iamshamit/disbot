@@ -220,6 +220,7 @@ class LocationView(discord.ui.View):
             "hour": datetime.now(timezone.utc).hour,
         }
         view = SimulatorView(db, interaction.user, dc, initial_state=initial_state)
+        embed = _EB.info("🎣 Simulator", "Select your options and click **🔄 Calculate**.")
         await interaction.response.defer(ephemeral=True)
         try:
             payload = view._build_payload(user_row)

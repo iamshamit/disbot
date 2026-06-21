@@ -111,7 +111,6 @@ class BaitView(discord.ui.View):
         from utils.embeds import EmbedBuilder as _EB
         from datetime import datetime, timezone
 
-        user_row = await self.db.get_or_create_user(self.user_id)
         initial_state = {
             "location_id": None,
             "tool_id": None,
