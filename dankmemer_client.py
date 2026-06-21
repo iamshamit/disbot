@@ -1,8 +1,31 @@
 import logging
 from typing import Any, Dict, Optional
 from dankmemer import DankMemerClient
+import json as _json
+import re as _re
+from pathlib import Path as _Path
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_skill_categories(items: list) -> dict:
+    """Parse raw skill items from data.json into {category: [{base, name, max_tier}]}."""
+    cats: dict[str, list[dict]] = {}
+    for s in items:
+        m = _re.match(r"^(.+)-(\d+)$", s["id"])
+        if not m:
+            continue
+        base, tier = m.group(1), int(m.group(2))
+        cat = s["extra"]["category"]
+        clean_name = _re.sub(r"\s+(IX|VIII|VII|VI|V|IV|III|II|I)$", "", s["name"])
+        if cat not in cats:
+            cats[cat] = []
+        existing = next((x for x in cats[cat] if x["base"] == base), None)
+        if existing:
+            existing["max_tier"] = max(existing["max_tier"], tier)
+        else:
+            cats[cat].append({"base": base, "name": clean_name, "max_tier": tier})
+    return cats
 
 
 class DankMemerGameClient:
@@ -22,6 +45,8 @@ class DankMemerGameClient:
         self.npc_by_id: Dict[str, Any] = {}
         self.npc_by_name: Dict[str, Any] = {}
         self.event_by_id: Dict[str, Any] = {}
+        self.event_by_name: Dict[str, Any] = {}
+        self.skill_categories: Dict[str, list] = {}
         self.location_creature_map: Dict[str, list] = {}
 
     async def connect(self) -> None:
@@ -107,6 +132,7 @@ class DankMemerGameClient:
             logger.debug("events.query() returned %d items", len(events))
             for event in events:
                 self.event_by_id[event.id] = event
+                self.event_by_name[event.name.lower()] = event
         except Exception:
             logger.warning("Failed to preload events", exc_info=True)
 
@@ -119,6 +145,14 @@ class DankMemerGameClient:
                 if cid in self.fish_by_id
             ]
         logger.debug("Built location_creature_map for %d locations", len(self.location_creature_map))
+
+        try:
+            data_path = _Path(__file__).parent / "data.json"
+            raw_skills = _json.loads(data_path.read_text(encoding="utf-8"))["data"]["skills"]["items"]
+            self.skill_categories = _parse_skill_categories(raw_skills)
+            logger.info("Loaded %d skill categories", len(self.skill_categories))
+        except Exception:
+            logger.warning("Failed to load skill categories from data.json", exc_info=True)
 
         logger.info(
             "Preload complete: %d fish, %d locations, %d tools, %d baits, %d npcs, %d events",

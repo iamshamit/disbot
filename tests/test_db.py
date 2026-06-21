@@ -100,6 +100,18 @@ async def test_get_history_respects_limit(db):
     assert len(rows) == 3
 
 @pytest.mark.asyncio
+async def test_add_history_stores_data(db):
+    await db.add_history("111", "simulation", "river", data='{"failChance": 12.5}')
+    rows = await db.get_history("111", "simulation")
+    assert rows[0]["data"] == '{"failChance": 12.5}'
+
+@pytest.mark.asyncio
+async def test_add_history_data_defaults_none(db):
+    await db.add_history("111", "fish", "goldfish")
+    rows = await db.get_history("111", "fish")
+    assert rows[0]["data"] is None
+
+@pytest.mark.asyncio
 async def test_history_scoped_by_type(db):
     await db.add_history("111", "fish", "goldfish")
     await db.add_history("111", "location", "ocean")

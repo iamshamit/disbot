@@ -115,11 +115,11 @@ class Database:
         ) as cursor:
             return list(await cursor.fetchall())
 
-    async def add_history(self, discord_id: str, type: str, item_id: str) -> None:
+    async def add_history(self, discord_id: str, type: str, item_id: str, data: str | None = None) -> None:
         logger.debug("DB add_history: %s %s %s", discord_id, type, item_id)
         await self._conn.execute(
-            "INSERT INTO history (discord_id, type, item_id) VALUES (?, ?, ?)",
-            (discord_id, type, item_id),
+            "INSERT INTO history (discord_id, type, item_id, data) VALUES (?, ?, ?, ?)",
+            (discord_id, type, item_id, data),
         )
         await self._conn.execute(
             """DELETE FROM history WHERE discord_id = ? AND type = ? AND id NOT IN (
