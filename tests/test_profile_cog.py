@@ -299,3 +299,31 @@ async def test_reset_confirm_view_has_confirm_and_cancel():
     labels = [item.label for item in view.children if isinstance(item, discord.ui.Button)]
     assert any("Confirm" in l for l in labels)
     assert any("Cancel" in l for l in labels)
+
+@pytest.mark.asyncio
+async def test_reset_confirm_view_confirm_resets_user():
+    from cogs.profile import ResetConfirmView
+    db = MagicMock()
+    db.update_user = AsyncMock()
+    db.get_user = AsyncMock(return_value=make_user_row())
+    dc = MagicMock()
+    member = make_member()
+    view = ResetConfirmView(db, member, dc)
+    interaction = make_interaction()
+    await view.confirm_btn.callback(interaction)
+    db.update_user.assert_called_once()
+    call_kwargs = db.update_user.call_args.kwargs
+    assert call_kwargs.get("fishing_skill") == 0
+    assert call_kwargs.get("boss_unlock") == 0
+
+@pytest.mark.asyncio
+async def test_reset_confirm_view_cancel_restores_profile():
+    from cogs.profile import ResetConfirmView
+    db = MagicMock()
+    db.get_user = AsyncMock(return_value=make_user_row())
+    dc = MagicMock()
+    member = make_member()
+    view = ResetConfirmView(db, member, dc)
+    interaction = make_interaction()
+    await view.cancel_btn.callback(interaction)
+    interaction.response.edit_message.assert_called_once()

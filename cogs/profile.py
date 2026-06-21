@@ -74,11 +74,12 @@ class EditSkillsModal(discord.ui.Modal, title="Edit Skills"):
         label="Coins", placeholder="0+", required=False, max_length=15
     )
 
-    def __init__(self, db, member, message):
+    def __init__(self, db, member, message, dank_client=None):
         super().__init__()
         self.db = db
         self.member = member
         self.message = message
+        self.dc = dank_client
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         fields = {
@@ -111,7 +112,7 @@ class EditSkillsModal(discord.ui.Modal, title="Edit Skills"):
         user_row = await self.db.get_user(str(self.member.id))
         await self.message.edit(
             embed=build_profile_embed(user_row, self.member),
-            view=ProfileView(self.db, self.member, None),
+            view=ProfileView(self.db, self.member, self.dc),
         )
         await interaction.response.defer()
 
@@ -124,11 +125,12 @@ class EditUnlocksModal(discord.ui.Modal, title="Edit Unlocks"):
         label="Mythical Unlock (yes/no)", placeholder="yes or no", required=False, max_length=3
     )
 
-    def __init__(self, db, member, message):
+    def __init__(self, db, member, message, dank_client=None):
         super().__init__()
         self.db = db
         self.member = member
         self.message = message
+        self.dc = dank_client
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         updates: dict = {}
@@ -148,7 +150,7 @@ class EditUnlocksModal(discord.ui.Modal, title="Edit Unlocks"):
         user_row = await self.db.get_user(str(self.member.id))
         await self.message.edit(
             embed=build_profile_embed(user_row, self.member),
-            view=ProfileView(self.db, self.member, None),
+            view=ProfileView(self.db, self.member, self.dc),
         )
         await interaction.response.defer()
 
@@ -161,11 +163,12 @@ class EditEnvModal(discord.ui.Modal, title="Edit Environment"):
         label="Current Event", placeholder="e.g. Fishing Festival", required=False, max_length=100
     )
 
-    def __init__(self, db, member, message):
+    def __init__(self, db, member, message, dank_client=None):
         super().__init__()
         self.db = db
         self.member = member
         self.message = message
+        self.dc = dank_client
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         updates: dict = {}
@@ -178,7 +181,7 @@ class EditEnvModal(discord.ui.Modal, title="Edit Environment"):
         user_row = await self.db.get_user(str(self.member.id))
         await self.message.edit(
             embed=build_profile_embed(user_row, self.member),
-            view=ProfileView(self.db, self.member, None),
+            view=ProfileView(self.db, self.member, self.dc),
         )
         await interaction.response.defer()
 
@@ -197,11 +200,12 @@ class EditFavsModal(discord.ui.Modal, title="Edit Favourites"):
         label="Favourite Bait", placeholder="e.g. Glitter Bait", required=False, max_length=100
     )
 
-    def __init__(self, db, member, message):
+    def __init__(self, db, member, message, dank_client=None):
         super().__init__()
         self.db = db
         self.member = member
         self.message = message
+        self.dc = dank_client
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         updates: dict = {}
@@ -218,7 +222,7 @@ class EditFavsModal(discord.ui.Modal, title="Edit Favourites"):
         user_row = await self.db.get_user(str(self.member.id))
         await self.message.edit(
             embed=build_profile_embed(user_row, self.member),
-            view=ProfileView(self.db, self.member, None),
+            view=ProfileView(self.db, self.member, self.dc),
         )
         await interaction.response.defer()
 
@@ -229,10 +233,16 @@ class ResetConfirmView(discord.ui.View):
         self.db = db
         self.member = member
         self.dc = dank_client
+        self.message: discord.Message | None = None
 
     async def on_timeout(self) -> None:
         for item in self.children:
             item.disabled = True  # type: ignore[attr-defined]
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
     @discord.ui.button(label="✅ Confirm Reset", style=discord.ButtonStyle.danger)
     async def confirm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -301,33 +311,35 @@ class ProfileView(discord.ui.View):
     @discord.ui.button(label="📊 Edit Skills", style=discord.ButtonStyle.secondary, row=0)
     async def edit_skills_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
-            EditSkillsModal(self.db, self.member, interaction.message)
+            EditSkillsModal(self.db, self.member, interaction.message, self.dc)
         )
 
     @discord.ui.button(label="🔓 Edit Unlocks", style=discord.ButtonStyle.secondary, row=0)
     async def edit_unlocks_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
-            EditUnlocksModal(self.db, self.member, interaction.message)
+            EditUnlocksModal(self.db, self.member, interaction.message, self.dc)
         )
 
     @discord.ui.button(label="🌤️ Edit Env", style=discord.ButtonStyle.secondary, row=0)
     async def edit_env_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
-            EditEnvModal(self.db, self.member, interaction.message)
+            EditEnvModal(self.db, self.member, interaction.message, self.dc)
         )
 
     @discord.ui.button(label="⭐ Edit Favs", style=discord.ButtonStyle.secondary, row=0)
     async def edit_favs_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
-            EditFavsModal(self.db, self.member, interaction.message)
+            EditFavsModal(self.db, self.member, interaction.message, self.dc)
         )
 
     @discord.ui.button(label="🔄 Reset", style=discord.ButtonStyle.danger, row=1)
     async def reset_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        confirm_view = ResetConfirmView(self.db, self.member, self.dc)
         await interaction.response.edit_message(
             embed=EmbedBuilder.warning("Reset Profile", "This will clear all your data. Are you sure?"),
-            view=ResetConfirmView(self.db, self.member, self.dc),
+            view=confirm_view,
         )
+        confirm_view.message = await interaction.original_response()
 
     @discord.ui.button(label="📤 Export", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def export_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
