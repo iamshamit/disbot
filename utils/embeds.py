@@ -565,3 +565,87 @@ def build_profile_embed(user_row, member) -> discord.Embed:
 
     embed.set_footer(text=f"Last updated: {user_row['updated_at'] or 'Never'}")
     return embed
+
+
+def build_favorites_embed(favs_by_type: dict, member) -> discord.Embed:
+    embed = discord.Embed(title="⭐ Your Favourites", color=0x5865F2)
+    embed.set_author(name="⭐ Favourites")
+    if hasattr(member, "display_avatar") and member.display_avatar:
+        embed.set_thumbnail(url=str(member.display_avatar.url))
+    type_labels = {
+        "fish": ("\U0001f420 Fish", "fish"),
+        "location": ("\U0001f4cd Locations", "location"),
+        "tool": ("\U0001f527 Tools", "tool"),
+        "bait": ("\U0001fab1 Baits", "bait"),
+    }
+    for key, (label, _) in type_labels.items():
+        items = favs_by_type.get(key, [])
+        value = ", ".join(items[:10]) if items else "None"
+        embed.add_field(name=label, value=value, inline=False)
+    if not any(favs_by_type.get(k) for k in favs_by_type):
+        embed.description = (
+            "You haven't favourited anything yet.\n"
+            "Use the ⭐ button on any `/fish`, `/location`, `/tool`, or `/bait` embed."
+        )
+    return embed
+
+
+def _relative_time(ts_str: str | None) -> str:
+    if not ts_str:
+        return "unknown"
+    try:
+        from datetime import datetime as _dt
+        dt = _dt.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+        delta = _dt.utcnow() - dt
+        secs = int(delta.total_seconds())
+        if secs < 60:
+            return "just now"
+        mins = secs // 60
+        if mins < 60:
+            return f"{mins}m ago"
+        hours = mins // 60
+        if hours < 24:
+            return f"{hours}h ago"
+        return f"{hours // 24}d ago"
+    except (ValueError, TypeError):
+        return str(ts_str)
+
+
+def build_history_embed(rows: list, member, tab: str) -> discord.Embed:
+    tab_labels = {
+        "fish": "\U0001f420 Fish",
+        "location": "\U0001f4cd Locations",
+        "simulation": "\U0001f3ae Simulations",
+        "command": "\U0001f4ac Commands",
+    }
+    embed = discord.Embed(
+        title=f"\U0001f4dc Recent — {tab_labels.get(tab, tab)}",
+        color=0x5865F2,
+    )
+    embed.set_author(name="\U0001f4dc History")
+    if not rows:
+        embed.description = f"No {tab} history yet."
+        return embed
+    lines = []
+    for i, row in enumerate(rows, 1):
+        item_id = row["item_id"] or "?"
+        ts = _relative_time(row.get("created_at"))
+        lines.append(f"`{i:>2}.` **{item_id}** — {ts}")
+    embed.description = "\n".join(lines)
+    return embed
+
+
+def build_settings_embed(user_row) -> discord.Embed:
+    tz = user_row["timezone"] or "UTC"
+    theme = (user_row["theme"] or "dark").capitalize()
+    compact = "On" if user_row["compact_mode"] else "Off"
+    embed = discord.Embed(title="⚙️ Settings", color=0x5865F2)
+    embed.set_author(name="⚙️ Settings")
+    embed.description = (
+        f"\U0001f30d **Timezone:** {tz}\n"
+        f"\U0001f319 **Theme:** {theme}\n"
+        f"\U0001f4c4 **Compact Mode:** {compact}\n"
+        f"\U0001f514 **Notification Preferences:** *Coming in Phase 6*\n"
+        f"\U0001f3ae **Default Simulator Values:** *Coming in Phase 3*"
+    )
+    return embed

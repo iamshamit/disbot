@@ -327,3 +327,171 @@ async def test_reset_confirm_view_cancel_restores_profile():
     interaction = make_interaction()
     await view.cancel_btn.callback(interaction)
     interaction.response.edit_message.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# build_favorites_embed
+# ---------------------------------------------------------------------------
+
+def test_build_favorites_embed_shows_fish():
+    from utils.embeds import build_favorites_embed
+    by_type = {"fish": ["goldfish", "koi"], "location": [], "tool": [], "bait": []}
+    member = make_member()
+    embed = build_favorites_embed(by_type, member)
+    fish_field = next(f for f in embed.fields if "Fish" in f.name)
+    assert "goldfish" in fish_field.value
+    assert "koi" in fish_field.value
+
+def test_build_favorites_embed_empty_shows_none():
+    from utils.embeds import build_favorites_embed
+    by_type = {"fish": [], "location": [], "tool": [], "bait": []}
+    member = make_member()
+    embed = build_favorites_embed(by_type, member)
+    fish_field = next(f for f in embed.fields if "Fish" in f.name)
+    assert "None" in fish_field.value
+
+
+# ---------------------------------------------------------------------------
+# build_history_embed
+# ---------------------------------------------------------------------------
+
+def test_build_history_embed_lists_items():
+    from utils.embeds import build_history_embed
+    rows = [{"item_id": "goldfish", "created_at": "2026-01-01 00:00:00"}]
+    member = make_member()
+    embed = build_history_embed(rows, member, "fish")
+    assert "goldfish" in embed.description
+
+def test_build_history_embed_empty_state():
+    from utils.embeds import build_history_embed
+    member = make_member()
+    embed = build_history_embed([], member, "fish")
+    assert "nothing" in embed.description.lower() or "no " in embed.description.lower()
+
+
+# ---------------------------------------------------------------------------
+# build_settings_embed
+# ---------------------------------------------------------------------------
+
+def test_build_settings_embed_shows_timezone():
+    from utils.embeds import build_settings_embed
+    row = make_user_row(timezone="Asia/Kolkata")
+    embed = build_settings_embed(row)
+    assert "Asia/Kolkata" in embed.description
+
+def test_build_settings_embed_shows_theme():
+    from utils.embeds import build_settings_embed
+    row = make_user_row(theme="light")
+    embed = build_settings_embed(row)
+    assert "Light" in embed.description or "light" in embed.description
+
+def test_build_settings_embed_shows_compact():
+    from utils.embeds import build_settings_embed
+    row = make_user_row(compact_mode=1)
+    embed = build_settings_embed(row)
+    assert "On" in embed.description
+
+
+# ---------------------------------------------------------------------------
+# /favorites command
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_favorites_command_sends_embed():
+    from cogs.profile import ProfileCog, FavoritesView
+    db = MagicMock()
+    db.get_favorites = AsyncMock(return_value=[])
+    bot = make_mock_bot(db=db)
+    cog = ProfileCog(bot)
+    interaction = make_interaction()
+    await cog.favorites.callback(cog, interaction)
+    interaction.response.send_message.assert_called_once()
+    kwargs = interaction.response.send_message.call_args.kwargs
+    assert "embed" in kwargs
+    assert isinstance(kwargs["view"], FavoritesView)
+
+@pytest.mark.asyncio
+async def test_favorites_remove_btn_removes_item():
+    from cogs.profile import FavoritesView
+    db = MagicMock()
+    db.remove_favorite = AsyncMock()
+    db.get_favorites = AsyncMock(return_value=[])
+    dc = MagicMock()
+    dc.fish_by_id = {}
+    dc.location_by_id = {}
+    dc.tool_by_id = {}
+    dc.bait_by_id = {}
+    member = make_member()
+    fav_rows = [{"type": "fish", "item_id": "goldfish"}]
+    view = FavoritesView(db, member, dc, fav_rows)
+    view.selected_type = "fish"
+    view.selected_id = "goldfish"
+    interaction = make_interaction()
+    await view.remove_btn.callback(interaction)
+    db.remove_favorite.assert_called_once_with("123", "fish", "goldfish")
+    interaction.response.edit_message.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# /history command
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_history_command_sends_embed():
+    from cogs.profile import ProfileCog, HistoryView
+    db = MagicMock()
+    db.get_history = AsyncMock(return_value=[])
+    bot = make_mock_bot(db=db)
+    cog = ProfileCog(bot)
+    interaction = make_interaction()
+    await cog.history.callback(cog, interaction)
+    interaction.response.send_message.assert_called_once()
+    kwargs = interaction.response.send_message.call_args.kwargs
+    assert isinstance(kwargs["view"], HistoryView)
+
+
+# ---------------------------------------------------------------------------
+# /settings command
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_settings_command_sends_embed():
+    from cogs.profile import ProfileCog, SettingsView
+    db = MagicMock()
+    db.get_or_create_user = AsyncMock(return_value=make_user_row())
+    bot = make_mock_bot(db=db)
+    cog = ProfileCog(bot)
+    interaction = make_interaction()
+    await cog.settings.callback(cog, interaction)
+    interaction.response.send_message.assert_called_once()
+    kwargs = interaction.response.send_message.call_args.kwargs
+    assert isinstance(kwargs["view"], SettingsView)
+
+@pytest.mark.asyncio
+async def test_timezone_modal_rejects_invalid_tz():
+    from cogs.profile import TimezoneModal
+    db = MagicMock()
+    member = make_member()
+    message = AsyncMock()
+    modal = TimezoneModal(db, member, message, "UTC")
+    modal.timezone._value = "NotATimezone/Fake"
+    interaction = make_interaction()
+    await modal.on_submit(interaction)
+    interaction.response.send_message.assert_called_once()
+    assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
+    db.update_user.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_timezone_modal_saves_valid_tz():
+    from cogs.profile import TimezoneModal
+    db = MagicMock()
+    db.update_user = AsyncMock()
+    db.get_user = AsyncMock(return_value=make_user_row(timezone="Asia/Kolkata"))
+    member = make_member()
+    message = AsyncMock()
+    modal = TimezoneModal(db, member, message, "UTC")
+    modal.timezone._value = "Asia/Kolkata"
+    interaction = make_interaction()
+    await modal.on_submit(interaction)
+    db.update_user.assert_called_once()
+    assert db.update_user.call_args.kwargs.get("timezone") == "Asia/Kolkata"
