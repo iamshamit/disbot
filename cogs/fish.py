@@ -98,7 +98,8 @@ class FishView(discord.ui.View):
             else:
                 parts.append(f"✨ {v}")
         extra_text = "\n\n**🔮 VARIANTS DETAIL**\n" + ("\n".join(parts) or "No data.")
-        embed.description = (embed.description or "")[:3800] + extra_text
+        max_body = 4096 - len(extra_text)
+        embed.description = (embed.description or "")[:max_body] + extra_text
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="📍 Locations", style=discord.ButtonStyle.secondary, row=0)
@@ -112,7 +113,9 @@ class FishView(discord.ui.View):
                 fail = loc.extra.get("failChance", 0) if hasattr(loc.extra, "get") else 0
                 lines.append(f"📍 **{loc.name}**  ·  💀 Fail {fail}%")
         detail = "\n".join(lines) if lines else "No location data."
-        embed.description = (embed.description or "")[:3700] + f"\n\n**📍 LOCATION DETAILS**\n{detail}"
+        detail_text = f"\n\n**📍 LOCATION DETAILS**\n{detail}"
+        max_body = 4096 - len(detail_text)
+        embed.description = (embed.description or "")[:max_body] + detail_text
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="⚔️ Compare", style=discord.ButtonStyle.primary, row=1)
