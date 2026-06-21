@@ -705,7 +705,7 @@ def test_fishview_fav_btn_label_unfavourite_when_faved():
     view = FishView(creature, dc, db=db, user_id="123", is_faved=True)
     fav_btn = next(
         item for item in view.children
-        if isinstance(item, discord.ui.Button) and "avourite" in item.label
+        if isinstance(item, discord.ui.Button) and ("Favourite" in item.label or "Unfavourite" in item.label)
     )
     assert "Unfavourite" in fav_btn.label or "💛" in fav_btn.label
 
@@ -740,7 +740,7 @@ async def test_fishview_fav_btn_removes_when_already_faved():
     view = FishView(creature, dc, db=db, user_id="123", is_faved=True)
     fav_btn = next(
         item for item in view.children
-        if isinstance(item, discord.ui.Button) and "avourite" in item.label
+        if isinstance(item, discord.ui.Button) and ("Favourite" in item.label or "Unfavourite" in item.label)
     )
     interaction = make_interaction()
     await fav_btn.callback(interaction)

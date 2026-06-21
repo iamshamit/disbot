@@ -70,7 +70,7 @@ class BaitView(discord.ui.View):
     async def compare_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(BaitCompareModal(self.bait, self.dc))
 
-    @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True)
+    @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def fav_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self._is_faved:
             await self.db.remove_favorite(self.user_id, "bait", self.bait.id)

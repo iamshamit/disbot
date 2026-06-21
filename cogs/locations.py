@@ -25,12 +25,14 @@ class LocationCompareModal(discord.ui.Modal, title="Compare Location"):
         max_length=60,
     )
 
-    def __init__(self, first_loc, dank_client, location, dank_client_for_back):
+    def __init__(self, first_loc, dank_client, location, dank_client_for_back, db=None, user_id=None):
         super().__init__()
         self.first = first_loc
         self.dc = dank_client
         self.location = location
         self.dank_client = dank_client_for_back
+        self.db = db
+        self.user_id = user_id
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         name = self.second_loc.value.strip()
@@ -42,15 +44,17 @@ class LocationCompareModal(discord.ui.Modal, title="Compare Location"):
             return
         await interaction.response.edit_message(
             embed=build_location_compare_embed(self.first, second),
-            view=BackToLocationView(location=self.location, dank_client=self.dank_client),
+            view=BackToLocationView(location=self.location, dank_client=self.dank_client, db=self.db, user_id=self.user_id),
         )
 
 
 class BackToLocationView(discord.ui.View):
-    def __init__(self, location, dank_client):
+    def __init__(self, location, dank_client, db=None, user_id=None):
         super().__init__(timeout=300)
         self.location = location
-        self.dank_client = dank_client
+        self.dc = dank_client
+        self.db = db
+        self.user_id = user_id
 
     async def on_timeout(self) -> None:
         for item in self.children:
@@ -59,8 +63,8 @@ class BackToLocationView(discord.ui.View):
     @discord.ui.button(label="📍 Back to Location", style=discord.ButtonStyle.secondary)
     async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(
-            embed=build_location_embed(self.location, self.dank_client),
-            view=LocationView(self.location, self.dank_client),
+            embed=build_location_embed(self.location, self.dc),
+            view=LocationView(self.location, self.dc, db=self.db, user_id=self.user_id),
         )
 
 
@@ -172,7 +176,7 @@ class LocationView(discord.ui.View):
     @discord.ui.button(label="⚔️ Compare", style=discord.ButtonStyle.primary, row=1)
     async def compare_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
-            LocationCompareModal(self.loc, self.dc, location=self.loc, dank_client_for_back=self.dc)
+            LocationCompareModal(self.loc, self.dc, location=self.loc, dank_client_for_back=self.dc, db=self.db, user_id=self.user_id)
         )
 
     @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, disabled=True, row=1)
