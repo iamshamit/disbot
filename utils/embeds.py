@@ -1,4 +1,5 @@
 import discord
+import json as _skills_json
 
 
 class EmbedBuilder:
@@ -507,7 +508,39 @@ def build_npc_embed(npc) -> discord.Embed:
     return embed
 
 
-def build_profile_embed(user_row, member) -> discord.Embed:
+_ROMAN = ("", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX")
+
+
+def _format_skills(skills_json: str | None, dc=None) -> str:
+    if not skills_json:
+        return "No skills unlocked"
+    try:
+        skills = _skills_json.loads(skills_json)
+    except (ValueError, TypeError):
+        return "No skills unlocked"
+    if not skills:
+        return "No skills unlocked"
+    if dc and getattr(dc, "skill_categories", None):
+        cat_parts = {}
+        for cat, skill_list in dc.skill_categories.items():
+            entries = []
+            for s in skill_list:
+                tier = skills.get(s["base"], 0)
+                if tier > 0:
+                    entries.append(f"{s['name']} {_ROMAN[min(tier, 9)]}")
+            if entries:
+                cat_parts[cat] = entries
+        if not cat_parts:
+            return "No skills unlocked"
+        return "\n".join(f"{cat}: {', '.join(entries)}" for cat, entries in cat_parts.items())
+    parts = []
+    for base, tier in skills.items():
+        if tier > 0:
+            parts.append(f"{base.replace('-', ' ').title()} {_ROMAN[min(tier, 9)]}")
+    return ", ".join(parts) if parts else "No skills unlocked"
+
+
+def build_profile_embed(user_row, member, dc=None) -> discord.Embed:
     embed = discord.Embed(color=0x5865F2)
     embed.set_author(name="\U0001f464 Profile")
     embed.title = getattr(member, "display_name", str(member))
@@ -523,15 +556,16 @@ def build_profile_embed(user_row, member) -> discord.Embed:
         inline=False,
     )
 
-    fs = user_row["fishing_skill"] or 0
-    ls = user_row["luck_skill"] or 0
-    es = user_row["efficiency_skill"] or 0
+    try:
+        skills_json = user_row["skills"]
+    except (KeyError, IndexError):
+        skills_json = None
     prestige = user_row["prestige"] or 0
     coins = user_row["coins"] or 0
     embed.add_field(
         name="\U0001f4ca SKILLS",
         value=(
-            f"Fishing: **{fs}**  ·  Luck: **{ls}**  ·  Efficiency: **{es}**\n"
+            f"{_format_skills(skills_json, dc)}\n"
             f"Prestige: **{prestige}**  ·  Coins: **{coins:,}**"
         ),
         inline=False,

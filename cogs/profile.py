@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json as _json
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -51,21 +52,21 @@ class WeatherModal(discord.ui.Modal, title="Set Current Weather"):
         await interaction.response.defer()
 
 
+class FavFishModal(discord.ui.Modal, title="Set Favourite Fish"):
+    fish: discord.ui.TextInput = discord.ui.TextInput(
+        label="Favourite Fish", placeholder="e.g. Goldfish", required=False, max_length=100
+    )
 
-# ---------------------------------------------------------------------------
-# EditSkillsModal (integers — text input is the right control)
-# ---------------------------------------------------------------------------
+    def __init__(self, parent_view):
+        super().__init__()
+        self.parent_view = parent_view
 
-class EditSkillsModal(discord.ui.Modal, title="Edit Skills"):
-    fishing_skill: discord.ui.TextInput = discord.ui.TextInput(
-        label="Fishing Skill", placeholder="0+", required=False, max_length=6
-    )
-    luck_skill: discord.ui.TextInput = discord.ui.TextInput(
-        label="Luck Skill", placeholder="0+", required=False, max_length=6
-    )
-    efficiency_skill: discord.ui.TextInput = discord.ui.TextInput(
-        label="Efficiency Skill", placeholder="0+", required=False, max_length=6
-    )
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        self.parent_view._pending_fav_fish = self.fish.value.strip() or None
+        await interaction.response.defer()
+
+
+class EditStatsModal(discord.ui.Modal, title="Edit Stats"):
     prestige: discord.ui.TextInput = discord.ui.TextInput(
         label="Prestige", placeholder="0+", required=False, max_length=6
     )
@@ -73,21 +74,15 @@ class EditSkillsModal(discord.ui.Modal, title="Edit Skills"):
         label="Coins", placeholder="0+", required=False, max_length=15
     )
 
-    def __init__(self, db, member, message, dank_client=None):
+    def __init__(self, db, member, message, dc=None):
         super().__init__()
         self.db = db
         self.member = member
         self.message = message
-        self.dc = dank_client
+        self.dc = dc
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        fields = {
-            "fishing_skill": self.fishing_skill.value,
-            "luck_skill": self.luck_skill.value,
-            "efficiency_skill": self.efficiency_skill.value,
-            "prestige": self.prestige.value,
-            "coins": self.coins.value,
-        }
+        fields = {"prestige": self.prestige.value, "coins": self.coins.value}
         updates: dict = {}
         for key, raw in fields.items():
             if not raw.strip():
@@ -101,7 +96,7 @@ class EditSkillsModal(discord.ui.Modal, title="Edit Skills"):
                 await interaction.response.send_message(
                     embed=EmbedBuilder.error(
                         "Invalid value",
-                        f"**{key.replace('_', ' ').title()}** must be a non-negative integer.",
+                        f"**{key.title()}** must be a non-negative integer.",
                     ),
                     ephemeral=True,
                 )
@@ -110,7 +105,7 @@ class EditSkillsModal(discord.ui.Modal, title="Edit Skills"):
             await self.db.update_user(str(self.member.id), **updates)
         user_row = await self.db.get_user(str(self.member.id))
         await self.message.edit(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
         await interaction.response.defer()
@@ -180,7 +175,7 @@ class EditSetupView(discord.ui.View):
             await self.db.update_user(str(self.member.id), **updates)
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -188,7 +183,7 @@ class EditSetupView(discord.ui.View):
     async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -236,7 +231,7 @@ class EditUnlocksView(discord.ui.View):
             await self.db.update_user(str(self.member.id), **updates)
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -244,7 +239,7 @@ class EditUnlocksView(discord.ui.View):
     async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -291,7 +286,7 @@ class EditEnvView(discord.ui.View):
             await self.db.update_user(str(self.member.id), **updates)
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -299,7 +294,7 @@ class EditEnvView(discord.ui.View):
     async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -310,25 +305,16 @@ class EditFavsView(discord.ui.View):
         self.db = db
         self.member = member
         self.dc = dc
+        self._pending_fav_fish = _UNSET
 
         NONE_OPT = discord.SelectOption(label="— None —", value="__clear__")
-
-        fish_opts = [NONE_OPT] + [
-            discord.SelectOption(label=f.name, value=f.id)
-            for f in sorted(dc.fish_by_id.values(), key=lambda x: x.name)[:24]
-        ]
-        self._fish_sel = discord.ui.Select(
-            placeholder="🐟 Fav Fish…", options=fish_opts, min_values=0, max_values=1, row=0
-        )
-        self._fish_sel.callback = self._defer
-        self.add_item(self._fish_sel)
 
         loc_opts = [NONE_OPT] + [
             discord.SelectOption(label=l.name, value=l.id)
             for l in sorted(dc.location_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._loc_sel = discord.ui.Select(
-            placeholder="📍 Fav Location…", options=loc_opts, min_values=0, max_values=1, row=1
+            placeholder="📍 Fav Location…", options=loc_opts, min_values=0, max_values=1, row=0
         )
         self._loc_sel.callback = self._defer
         self.add_item(self._loc_sel)
@@ -338,7 +324,7 @@ class EditFavsView(discord.ui.View):
             for t in sorted(dc.tool_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._tool_sel = discord.ui.Select(
-            placeholder="🔧 Fav Tool…", options=tool_opts, min_values=0, max_values=1, row=2
+            placeholder="🔧 Fav Tool…", options=tool_opts, min_values=0, max_values=1, row=1
         )
         self._tool_sel.callback = self._defer
         self.add_item(self._tool_sel)
@@ -348,7 +334,7 @@ class EditFavsView(discord.ui.View):
             for b in sorted(dc.bait_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._bait_sel = discord.ui.Select(
-            placeholder="🪱 Fav Bait…", options=bait_opts, min_values=0, max_values=1, row=3
+            placeholder="🪱 Fav Bait…", options=bait_opts, min_values=0, max_values=1, row=2
         )
         self._bait_sel.callback = self._defer
         self.add_item(self._bait_sel)
@@ -356,17 +342,15 @@ class EditFavsView(discord.ui.View):
     async def _defer(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
 
+    @discord.ui.button(label="🐟 Set Fav Fish", style=discord.ButtonStyle.secondary, row=3)
+    async def set_fav_fish_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(FavFishModal(self))
+
     @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=4)
     async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         updates: dict = {}
-        if self._fish_sel.values:
-            v = self._fish_sel.values[0]
-            if v == "__clear__":
-                updates["favorite_fish"] = None
-            else:
-                f = self.dc.fish_by_id.get(v)
-                if f:
-                    updates["favorite_fish"] = f.name
+        if self._pending_fav_fish is not _UNSET:
+            updates["favorite_fish"] = self._pending_fav_fish
         if self._loc_sel.values:
             v = self._loc_sel.values[0]
             if v == "__clear__":
@@ -395,7 +379,7 @@ class EditFavsView(discord.ui.View):
             await self.db.update_user(str(self.member.id), **updates)
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -403,7 +387,7 @@ class EditFavsView(discord.ui.View):
     async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -433,9 +417,7 @@ class ResetConfirmView(discord.ui.View):
             fishing_rod="Wooden Rod",
             current_tool=None,
             current_bait=None,
-            fishing_skill=0,
-            luck_skill=0,
-            efficiency_skill=0,
+            skills=None,
             prestige=0,
             coins=0,
             boss_unlock=0,
@@ -449,7 +431,7 @@ class ResetConfirmView(discord.ui.View):
         )
         user_row = await self.db.get_user(user_id)
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -457,7 +439,7 @@ class ResetConfirmView(discord.ui.View):
     async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
-            embed=build_profile_embed(user_row, self.member),
+            embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
 
@@ -492,8 +474,23 @@ class ProfileView(discord.ui.View):
 
     @discord.ui.button(label="📊 Edit Skills", style=discord.ButtonStyle.secondary, row=0)
     async def edit_skills_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(
-            EditSkillsModal(self.db, self.member, interaction.message, self.dc)
+        from cogs.simulator import SkillsPickerView
+        user_row = await self.db.get_user(str(self.member.id))
+        try:
+            current_skills = _json.loads(user_row["skills"]) if user_row["skills"] else {}
+        except (ValueError, TypeError, KeyError, IndexError):
+            current_skills = {}
+
+        async def return_fn(inter: discord.Interaction) -> None:
+            fresh_row = await self.db.get_user(str(self.member.id))
+            await inter.response.edit_message(
+                embed=build_profile_embed(fresh_row, self.member, self.dc),
+                view=ProfileView(self.db, self.member, self.dc),
+            )
+
+        await interaction.response.edit_message(
+            embed=_picker_embed("📊 Edit Skills"),
+            view=SkillsPickerView(self.db, self.member, self.dc, current_skills, return_fn),
         )
 
     @discord.ui.button(label="🔓 Edit Unlocks", style=discord.ButtonStyle.secondary, row=0)
@@ -525,6 +522,12 @@ class ProfileView(discord.ui.View):
             view=confirm_view,
         )
         confirm_view.message = await interaction.original_response()
+
+    @discord.ui.button(label="📈 Edit Stats", style=discord.ButtonStyle.secondary, row=1)
+    async def edit_stats_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(
+            EditStatsModal(self.db, self.member, interaction.message, self.dc)
+        )
 
     @discord.ui.button(label="📤 Export", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def export_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -799,7 +802,7 @@ class ProfileCog(commands.Cog):
     @app_commands.command(name="profile", description="View and edit your fishing profile")
     async def profile(self, interaction: discord.Interaction):
         user_row = await self.bot.db.get_or_create_user(str(interaction.user.id))
-        embed = build_profile_embed(user_row, interaction.user)
+        embed = build_profile_embed(user_row, interaction.user, self.bot.dank_client)
         view = ProfileView(self.bot.db, interaction.user, self.bot.dank_client)
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()

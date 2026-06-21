@@ -28,6 +28,7 @@ def make_user_row(**overrides):
         "timezone": "UTC",
         "theme": "dark",
         "compact_mode": 0,
+        "skills": None,
         "updated_at": "2026-01-01 00:00:00",
     }
     return {**defaults, **overrides}
@@ -90,15 +91,23 @@ def test_build_profile_embed_setup_field():
     assert "Harpoon" in setup_field.value
     assert "Glitter Bait" in setup_field.value
 
-def test_build_profile_embed_skills_field():
+def test_build_profile_embed_skills_shows_no_skills_when_none():
     from utils.embeds import build_profile_embed
-    row = make_user_row(fishing_skill=5, luck_skill=3, efficiency_skill=8, prestige=2, coins=1000)
+    row = make_user_row(skills=None, prestige=2, coins=1000)
     member = make_member()
     embed = build_profile_embed(row, member)
     skills_field = next(f for f in embed.fields if "SKILLS" in f.name)
-    assert "5" in skills_field.value
-    assert "3" in skills_field.value
-    assert "1,000" in skills_field.value  # coins formatted with comma
+    assert "No skills unlocked" in skills_field.value
+    assert "1,000" in skills_field.value
+
+def test_build_profile_embed_skills_shows_real_skills():
+    from utils.embeds import build_profile_embed
+    import json
+    row = make_user_row(skills=json.dumps({"zoologist": 3, "haggler": 1}))
+    member = make_member()
+    embed = build_profile_embed(row, member)
+    skills_field = next(f for f in embed.fields if "SKILLS" in f.name)
+    assert "III" in skills_field.value or "3" in skills_field.value
 
 def test_build_profile_embed_unlocks_field():
     from utils.embeds import build_profile_embed
@@ -170,19 +179,20 @@ async def test_profile_view_has_expected_buttons():
     from cogs.profile import ProfileView
     db = MagicMock()
     dc = MagicMock()
+    dc.tool_by_id = {}
+    dc.bait_by_id = {}
+    dc.skill_categories = {}
     member = make_member()
     view = ProfileView(db, member, dc)
     labels = [item.label for item in view.children if isinstance(item, discord.ui.Button)]
     assert any("Edit Setup" in l for l in labels)
     assert any("Edit Skills" in l for l in labels)
+    assert any("Edit Stats" in l for l in labels)
     assert any("Edit Unlocks" in l for l in labels)
     assert any("Reset" in l for l in labels)
     export_btn = next((item for item in view.children if isinstance(item, discord.ui.Button) and "Export" in item.label), None)
     assert export_btn is not None
     assert export_btn.disabled is True
-    import_btn = next((item for item in view.children if isinstance(item, discord.ui.Button) and "Import" in item.label), None)
-    assert import_btn is not None
-    assert import_btn.disabled is True
 
 @pytest.mark.asyncio
 async def test_profile_view_edit_setup_btn_shows_picker():
@@ -204,16 +214,13 @@ async def test_profile_view_edit_setup_btn_shows_picker():
     assert isinstance(kwargs["view"], EditSetupView)
 
 @pytest.mark.asyncio
-async def test_edit_skills_modal_rejects_negative_skill():
-    from cogs.profile import EditSkillsModal
+async def test_edit_stats_modal_rejects_negative():
+    from cogs.profile import EditStatsModal
     db = MagicMock()
     member = make_member()
     message = AsyncMock()
-    modal = EditSkillsModal(db, member, message)
-    modal.fishing_skill._value = "-5"
-    modal.luck_skill._value = ""
-    modal.efficiency_skill._value = ""
-    modal.prestige._value = ""
+    modal = EditStatsModal(db, member, message)
+    modal.prestige._value = "-1"
     modal.coins._value = ""
     interaction = make_interaction()
     await modal.on_submit(interaction)
@@ -222,25 +229,22 @@ async def test_edit_skills_modal_rejects_negative_skill():
     db.update_user.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_edit_skills_modal_saves_valid_values():
-    from cogs.profile import EditSkillsModal
+async def test_edit_stats_modal_saves_prestige_and_coins():
+    from cogs.profile import EditStatsModal
     db = MagicMock()
     db.update_user = AsyncMock()
-    db.get_user = AsyncMock(return_value=make_user_row(fishing_skill=5))
+    db.get_user = AsyncMock(return_value=make_user_row(prestige=5, coins=500))
     member = make_member()
     message = AsyncMock()
-    modal = EditSkillsModal(db, member, message)
-    modal.fishing_skill._value = "5"
-    modal.luck_skill._value = ""
-    modal.efficiency_skill._value = ""
-    modal.prestige._value = ""
-    modal.coins._value = ""
+    modal = EditStatsModal(db, member, message)
+    modal.prestige._value = "5"
+    modal.coins._value = "500"
     interaction = make_interaction()
     await modal.on_submit(interaction)
     db.update_user.assert_called_once()
-    call_kwargs = db.update_user.call_args.kwargs
-    assert call_kwargs.get("fishing_skill") == 5
-    interaction.response.defer.assert_called_once()
+    kwargs = db.update_user.call_args.kwargs
+    assert kwargs.get("prestige") == 5
+    assert kwargs.get("coins") == 500
 
 @pytest.mark.asyncio
 async def test_edit_unlocks_view_has_selects():
@@ -310,8 +314,9 @@ async def test_reset_confirm_view_confirm_resets_user():
     await view.confirm_btn.callback(interaction)
     db.update_user.assert_called_once()
     call_kwargs = db.update_user.call_args.kwargs
-    assert call_kwargs.get("fishing_skill") == 0
     assert call_kwargs.get("boss_unlock") == 0
+    assert "skills" in call_kwargs
+    assert call_kwargs.get("skills") is None
 
 @pytest.mark.asyncio
 async def test_reset_confirm_view_cancel_restores_profile():
@@ -493,3 +498,81 @@ async def test_timezone_modal_saves_valid_tz():
     db.update_user.assert_called_once()
     assert db.update_user.call_args.kwargs.get("timezone") == "Asia/Kolkata"
     db.get_or_create_user.assert_called_once_with("123")
+
+
+# ---------------------------------------------------------------------------
+# SkillsPickerView
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_skills_picker_view_shows_category_tabs():
+    from cogs.simulator import SkillsPickerView
+    db = MagicMock()
+    dc = MagicMock()
+    dc.skill_categories = {
+        "Economy": [{"base": "haggler", "name": "Haggler", "max_tier": 3}],
+        "Nature": [{"base": "zoologist", "name": "Zoologist", "max_tier": 5}],
+    }
+    member = make_member()
+    async def return_fn(inter): pass
+    view = SkillsPickerView(db, member, dc, {}, return_fn)
+    buttons = [c for c in view.children if isinstance(c, discord.ui.Button)]
+    labels = [b.label for b in buttons]
+    assert "Economy" in labels
+    assert "Nature" in labels
+
+@pytest.mark.asyncio
+async def test_skills_picker_save_writes_skills_to_db():
+    from cogs.simulator import SkillsPickerView
+    import json
+    db = MagicMock()
+    db.update_user = AsyncMock()
+    dc = MagicMock()
+    dc.skill_categories = {
+        "Economy": [{"base": "haggler", "name": "Haggler", "max_tier": 3}],
+    }
+    member = make_member()
+    returned = []
+    async def return_fn(inter): returned.append(True)
+    view = SkillsPickerView(db, member, dc, {}, return_fn)
+    view._pending["haggler"] = 2
+    interaction = make_interaction()
+    await view._save(interaction)
+    db.update_user.assert_called_once()
+    written = db.update_user.call_args.kwargs.get("skills")
+    assert json.loads(written) == {"haggler": 2}
+    assert returned
+
+@pytest.mark.asyncio
+async def test_skills_picker_save_removes_tier_zero():
+    from cogs.simulator import SkillsPickerView
+    import json
+    db = MagicMock()
+    db.update_user = AsyncMock()
+    dc = MagicMock()
+    dc.skill_categories = {
+        "Economy": [{"base": "haggler", "name": "Haggler", "max_tier": 3}],
+    }
+    member = make_member()
+    async def return_fn(inter): pass
+    view = SkillsPickerView(db, member, dc, {"haggler": 2}, return_fn)
+    view._pending["haggler"] = 0  # user cleared it
+    interaction = make_interaction()
+    await view._save(interaction)
+    written = db.update_user.call_args.kwargs.get("skills")
+    # haggler removed from JSON
+    assert "haggler" not in (json.loads(written) if written else {})
+
+@pytest.mark.asyncio
+async def test_skills_picker_cancel_calls_return_fn():
+    from cogs.simulator import SkillsPickerView
+    db = MagicMock()
+    dc = MagicMock()
+    dc.skill_categories = {}
+    member = make_member()
+    returned = []
+    async def return_fn(inter): returned.append(True)
+    view = SkillsPickerView(db, member, dc, {}, return_fn)
+    interaction = make_interaction()
+    await view._cancel(interaction)
+    assert returned
