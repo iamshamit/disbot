@@ -81,7 +81,7 @@ class Database:
         )
         await self._conn.commit()
 
-    async def get_or_create_user(self, discord_id: str):
+    async def get_or_create_user(self, discord_id: str) -> aiosqlite.Row:
         await self.create_user(discord_id)
         return await self.get_user(discord_id)
 
