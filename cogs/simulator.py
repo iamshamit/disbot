@@ -275,6 +275,7 @@ class SimulatorView(discord.ui.View):
         self._build_selects()
 
     def _build_selects(self) -> None:
+        # Called once from __init__ only. Removes and re-adds select items; buttons are class-level and untouched.
         for item in list(self.children):
             if isinstance(item, discord.ui.Select):
                 self.remove_item(item)
@@ -384,7 +385,7 @@ class SimulatorView(discord.ui.View):
 
     @discord.ui.button(label="👥 Skills", style=discord.ButtonStyle.secondary, row=4)
     async def skills_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_row = await self.db.get_user(str(self.member.id))
+        user_row = await self.db.get_or_create_user(str(self.member.id))
         try:
             current_skills = _json.loads(user_row["skills"]) if user_row["skills"] else {}
         except (ValueError, TypeError, KeyError, IndexError):
