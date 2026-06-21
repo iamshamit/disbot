@@ -15,14 +15,30 @@ class CoreCog(commands.Cog):
         embed = EmbedBuilder.success("Pong!", f"Latency: **{latency}ms**")
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="stats", description="Show bot statistics")
+    @app_commands.command(name="stats", description="Show bot statistics and data status")
     async def stats(self, interaction: discord.Interaction):
-        embed = EmbedBuilder.info("Bot Statistics")
+        embed = EmbedBuilder.info("📊 Bot Statistics")
         embed.add_field(name="Guilds", value=str(len(self.bot.guilds)), inline=True)
         embed.add_field(name="Latency", value=f"{round(self.bot.latency * 1000)}ms", inline=True)
-        if self.bot.dank_client:
-            embed.add_field(name="Fish", value=str(len(self.bot.dank_client.fish_by_id)), inline=True)
-            embed.add_field(name="Locations", value=str(len(self.bot.dank_client.location_by_id)), inline=True)
+        embed.add_field(name="​", value="​", inline=True)  # spacer
+
+        dc = self.bot.dank_client
+        if dc:
+            fish_count = len(dc.fish_by_id)
+            loc_count = len(dc.location_by_id)
+            tool_count = len(dc.tool_by_id)
+            bait_count = len(dc.bait_by_id)
+            npc_count = len(dc.npc_by_id)
+            status = "✅ Ready" if fish_count > 0 else "⏳ Loading…"
+            embed.add_field(name="🐟 Fish", value=str(fish_count), inline=True)
+            embed.add_field(name="📍 Locations", value=str(loc_count), inline=True)
+            embed.add_field(name="🔧 Tools", value=str(tool_count), inline=True)
+            embed.add_field(name="🪱 Baits", value=str(bait_count), inline=True)
+            embed.add_field(name="👤 NPCs", value=str(npc_count), inline=True)
+            embed.add_field(name="Cache", value=status, inline=True)
+        else:
+            embed.add_field(name="Data", value="❌ Client not initialised", inline=False)
+
         await interaction.response.send_message(embed=embed)
 
 
