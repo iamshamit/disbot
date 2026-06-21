@@ -105,3 +105,16 @@ async def test_history_scoped_by_type(db):
     await db.add_history("111", "location", "ocean")
     fish_rows = await db.get_history("111", "fish")
     assert all(r["type"] == "fish" for r in fish_rows)
+
+@pytest.mark.asyncio
+async def test_add_history_prune_keeps_newest_ids(db):
+    for i in range(25):
+        await db.add_history("111", "fish", f"fish_{i}")
+    rows = await db.get_history("111", "fish")
+    assert len(rows) == 20
+    item_ids = [r["item_id"] for r in rows]
+    # The 5 oldest (fish_0..fish_4) should be pruned; newest 20 should survive
+    for i in range(5, 25):
+        assert f"fish_{i}" in item_ids, f"fish_{i} was incorrectly pruned"
+    for i in range(5):
+        assert f"fish_{i}" not in item_ids, f"fish_{i} should have been pruned"

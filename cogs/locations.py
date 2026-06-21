@@ -185,17 +185,26 @@ class LocationView(discord.ui.View):
 
     @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def fav_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self._is_faved:
-            await self.db.remove_favorite(self.user_id, "location", self.loc.id)
-            self._is_faved = False
-            button.label = "⭐ Favourite"
-            button.style = discord.ButtonStyle.secondary
-        else:
-            await self.db.add_favorite(self.user_id, "location", self.loc.id)
-            self._is_faved = True
-            button.label = "💛 Unfavourite"
-            button.style = discord.ButtonStyle.primary
-        await interaction.response.edit_message(view=self)
+        try:
+            if self._is_faved:
+                await self.db.remove_favorite(self.user_id, "location", self.loc.id)
+                self._is_faved = False
+                button.label = "⭐ Favourite"
+                button.style = discord.ButtonStyle.secondary
+            else:
+                await self.db.add_favorite(self.user_id, "location", self.loc.id)
+                self._is_faved = True
+                button.label = "💛 Unfavourite"
+                button.style = discord.ButtonStyle.primary
+            await interaction.response.edit_message(view=self)
+        except Exception:
+            try:
+                await interaction.response.send_message(
+                    embed=EmbedBuilder.error("Error", "Could not update favourite. Please try again."),
+                    ephemeral=True,
+                )
+            except Exception:
+                pass
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=1)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):

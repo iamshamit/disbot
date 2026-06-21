@@ -124,7 +124,7 @@ class Database:
         await self._conn.execute(
             """DELETE FROM history WHERE discord_id = ? AND type = ? AND id NOT IN (
                 SELECT id FROM history WHERE discord_id = ? AND type = ?
-                ORDER BY created_at DESC LIMIT 20
+                ORDER BY created_at DESC, id DESC LIMIT 20
             )""",
             (discord_id, type, discord_id, type),
         )
