@@ -760,3 +760,25 @@ async def test_fish_command_writes_history():
     interaction.user.id = "123"
     await cog.fish.callback(cog, interaction, name="Goldfish")
     db.add_history.assert_called_once_with("123", "fish", "goldfish")
+
+
+# ---------------------------------------------------------------------------
+# FishView — Simulate button
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_fish_view_sim_btn_is_enabled_when_db_present():
+    from cogs.fish import FishView
+    dc = MagicMock()
+    dc.tool_by_id = {}
+    dc.bait_by_id = {}
+    dc.location_by_id = {}
+    dc.event_by_id = {}
+    dc.skill_categories = {}
+    db = MagicMock()
+    creature = MagicMock()
+    creature.extra = {"rarity": "Common", "boss": False, "mythical": False}
+    view = FishView(creature, dc, db=db, user_id="123")
+    sim_btn = next((b for b in view.children if isinstance(b, discord.ui.Button) and "Simulate" in b.label), None)
+    assert sim_btn is not None
+    assert sim_btn.disabled is False

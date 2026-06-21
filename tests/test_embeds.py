@@ -1,5 +1,6 @@
 import discord
 import pytest
+import json
 from tests.conftest import make_creature, make_location, make_tool, make_bait
 from unittest.mock import MagicMock
 
@@ -230,3 +231,24 @@ def test_build_npc_embed_title():
     npc.extra = DotDict({"description": "God of the sea.", "locations": ["loc1"]})
     embed = build_npc_embed(npc)
     assert embed.title == "Poseidon"
+
+
+# --- History embed — simulation tab ---
+
+def test_build_history_embed_simulation_shows_fail_percent():
+    from utils.embeds import build_history_embed
+
+    class FakeRow(dict):
+        pass
+
+    row = FakeRow({
+        "item_id": "river",
+        "data": json.dumps({"failChance": 15.3}),
+        "created_at": "2026-01-01 12:00:00",
+    })
+    rows = [row]
+    member = MagicMock()
+    member.display_name = "Tester"
+    embed = build_history_embed(rows, member, "simulation")
+    assert "15.3" in embed.description
+    assert "river" in embed.description

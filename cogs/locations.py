@@ -90,6 +90,12 @@ class LocationView(discord.ui.View):
             if is_faved:
                 fav_btn.label = "💛 Unfavourite"
                 fav_btn.style = discord.ButtonStyle.primary
+        sim_btn_item = next(
+            (item for item in self.children if isinstance(item, discord.ui.Button) and "Simulate" in item.label),
+            None,
+        )
+        if sim_btn_item:
+            sim_btn_item.disabled = db is None
 
     def _build_fish_select(self):
         creatures = self.dc.location_creature_map.get(self.loc.id, [])
@@ -179,9 +185,51 @@ class LocationView(discord.ui.View):
             LocationCompareModal(self.loc, self.dc, location=self.loc, dank_client_for_back=self.dc, db=self.db, user_id=self.user_id)
         )
 
-    @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, disabled=True, row=1)
+    @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, row=1)
     async def sim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        if not self.db:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not available", "Simulator requires database connection."),
+                ephemeral=True,
+            )
+            return
+        from cogs.simulator import SimulatorView, call_simulator_api, build_sim_results_embed
+        import json as _json
+        from datetime import datetime, timezone
+        from utils.embeds import EmbedBuilder as _EB
+
+        dc = self.dc
+        db = self.db
+        user_row = await db.get_or_create_user(self.user_id)
+        tool_id = None
+        if user_row["current_tool"]:
+            t = dc.tool_by_name.get(user_row["current_tool"].lower())
+            if t:
+                tool_id = t.id
+        bait_id = None
+        if user_row["current_bait"]:
+            b = dc.bait_by_name.get(user_row["current_bait"].lower())
+            if b:
+                bait_id = b.id
+
+        initial_state = {
+            "location_id": self.loc.id,
+            "tool_id": tool_id,
+            "bait_id": bait_id,
+            "event_id": None,
+            "hour": datetime.now(timezone.utc).hour,
+        }
+        view = SimulatorView(db, interaction.user, dc, initial_state=initial_state)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            payload = view._build_payload(user_row)
+            data = await call_simulator_api(payload)
+            embed = build_sim_results_embed(data, view._current_state(), dc)
+            view._last_embed = embed
+            await db.add_history(str(interaction.user.id), "simulation", self.loc.id, data=_json.dumps(data))
+        except Exception:
+            embed = _EB.info("🎣 Simulator", "Select your options and click **🔄 Calculate**.")
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def fav_btn(self, interaction: discord.Interaction, button: discord.ui.Button):

@@ -89,6 +89,12 @@ class FishView(discord.ui.View):
             if is_faved:
                 fav_btn.label = "💛 Unfavourite"
                 fav_btn.style = discord.ButtonStyle.primary
+        sim_btn_item = next(
+            (item for item in self.children if isinstance(item, discord.ui.Button) and "Simulate" in item.label),
+            None,
+        )
+        if sim_btn_item:
+            sim_btn_item.disabled = db is None
         self.message: discord.Message | None = None
 
     async def on_timeout(self) -> None:
@@ -167,9 +173,19 @@ class FishView(discord.ui.View):
             except Exception:
                 pass
 
-    @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, disabled=True, row=1)
+    @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, row=1)
     async def sim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        if not self.db:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not available", "Simulator requires database connection."),
+                ephemeral=True,
+            )
+            return
+        from cogs.simulator import SimulatorView
+        from utils.embeds import EmbedBuilder as _EB
+        view = SimulatorView(self.db, interaction.user, self.dc)
+        embed = _EB.info("🎣 Simulator", "Select your options and click **🔄 Calculate**.")
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=1)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):

@@ -665,7 +665,17 @@ def build_history_embed(rows: list, member, tab: str) -> discord.Embed:
     for i, row in enumerate(rows, 1):
         item_id = row["item_id"] or "?"
         ts = _relative_time(row["created_at"])
-        lines.append(f"`{i:>2}.` **{item_id}** — {ts}")
+        if tab == "simulation":
+            fail_pct = ""
+            try:
+                import json as _hj
+                d = _hj.loads(row["data"] or "{}")
+                fail_pct = f"  ❌ {d.get('failChance', 0):.1f}%"
+            except Exception:
+                pass
+            lines.append(f"`{i:>2}.` **{item_id}**{fail_pct} — {ts}")
+        else:
+            lines.append(f"`{i:>2}.` **{item_id}** — {ts}")
     embed.description = "\n".join(lines)
     return embed
 

@@ -55,6 +55,12 @@ class ToolView(discord.ui.View):
             if is_faved:
                 fav_btn.label = "💛 Unfavourite"
                 fav_btn.style = discord.ButtonStyle.primary
+        sim_btn_item = next(
+            (item for item in self.children if isinstance(item, discord.ui.Button) and "Simulate" in item.label),
+            None,
+        )
+        if sim_btn_item:
+            sim_btn_item.disabled = db is None
         self.message: discord.Message | None = None
 
     async def on_timeout(self) -> None:
@@ -93,9 +99,29 @@ class ToolView(discord.ui.View):
             except Exception:
                 pass
 
-    @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, disabled=True)
+    @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary)
     async def sim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        if not self.db:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not available", "Simulator requires database connection."),
+                ephemeral=True,
+            )
+            return
+        from cogs.simulator import SimulatorView
+        from utils.embeds import EmbedBuilder as _EB
+        from datetime import datetime, timezone
+
+        user_row = await self.db.get_or_create_user(self.user_id)
+        initial_state = {
+            "location_id": None,
+            "tool_id": self.tool.id,
+            "bait_id": None,
+            "event_id": None,
+            "hour": datetime.now(timezone.utc).hour,
+        }
+        view = SimulatorView(self.db, interaction.user, self.dc, initial_state=initial_state)
+        embed = _EB.info("🎣 Simulator", "Select your options and click **🔄 Calculate**.")
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
