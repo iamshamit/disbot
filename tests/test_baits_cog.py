@@ -205,8 +205,9 @@ async def test_baitcompare_both_found_sends_embed():
     call_kwargs = interaction.response.send_message.call_args
     assert "embed" in call_kwargs.kwargs
     embed = call_kwargs.kwargs["embed"]
-    assert "Glitter Bait" in embed.description
-    assert "Gold Bait" in embed.description
+    field_names = [f.name for f in embed.fields]
+    assert "Glitter Bait" in field_names
+    assert "Gold Bait" in field_names
 
 
 # ---------------------------------------------------------------------------
@@ -419,8 +420,9 @@ async def test_baitcomparemodal_on_submit_found_edits_message():
     # view=None per brief spec
     assert call_kwargs.kwargs.get("view") is None
     embed = call_kwargs.kwargs["embed"]
-    assert "Glitter Bait" in embed.description
-    assert "Gold Bait" in embed.description
+    field_names = [f.name for f in embed.fields]
+    assert "Glitter Bait" in field_names
+    assert "Gold Bait" in field_names
 
 
 @pytest.mark.asyncio

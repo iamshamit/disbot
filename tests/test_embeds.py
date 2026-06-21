@@ -78,15 +78,17 @@ def test_build_fish_compare_embed_winner_marked():
     c1 = make_creature(locations=["a", "b"])
     c2 = make_creature(locations=["a", "b", "c", "d", "e"])
     embed = build_fish_compare_embed(c1, c2)
-    # c2 has more locations → should have ✓
-    assert "✓" in embed.description
+    # c2 has more locations → its column field value should contain ✓
+    assert any("✓" in f.value for f in embed.fields)
 
-def test_build_fish_compare_embed_uses_code_block():
+def test_build_fish_compare_embed_uses_fields():
     from utils.embeds import build_fish_compare_embed
     c1 = make_creature(name="Goldfish")
     c2 = make_creature(id="koi", name="Koi", rarity="Rare")
     embed = build_fish_compare_embed(c1, c2)
-    assert "```" in embed.description  # comparison is in a code block
+    assert len(embed.fields) == 3  # labels + c1 + c2
+    assert embed.fields[1].name == "Goldfish"
+    assert embed.fields[2].name == "Koi"
 
 
 # --- Peak hours embed ---

@@ -36,7 +36,7 @@ from datetime import time as dt_time, datetime, timezone
 from utils.formatters import (
     rarity_color, rarity_emoji, rarity_rank,
     availability_bar, is_available_now, format_time_window,
-    winner_mark, COMPARE_COLOR, progress_bar, RARITY_EMOJI, RARITY_ORDER,
+    COMPARE_COLOR, progress_bar, RARITY_ORDER,
     RARITY_COLORS,
 )
 
@@ -63,9 +63,12 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
         lines += [f'*"{flavor}"*', ""]
 
     rem = rarity_emoji(rarity)
-    lines.append(
-        f"{rem} **{rarity}**  \u00b7  \ud83d\udc51 Boss: {'\u2705' if boss else '\u274c'}  \u00b7  \u2728 Mythical: {'\u2705' if mythical else '\u274c'}"
-    )
+    badge_parts = [f"{rem} **{rarity}**"]
+    if boss:
+        badge_parts.append("\ud83d\udc51 Boss")
+    if mythical:
+        badge_parts.append("\u2728 Mythical")
+    lines.append("  \u00b7  ".join(badge_parts))
 
     # Availability
     lines += ["", _SEP, "**\ud83d\udd50 AVAILABILITY**"]
@@ -112,38 +115,34 @@ def build_fish_compare_embed(c1, c2) -> discord.Embed:
     )
     embed.set_author(name="\u2694\ufe0f Fish Compare")
 
-    rows: list[tuple[str, str, str]] = []
-
-    # Rarity
     r1, r2 = c1.extra.get("rarity", "Common"), c2.extra.get("rarity", "Common")
     rank1, rank2 = rarity_rank(r1), rarity_rank(r2)
-    re1, re2 = rarity_emoji(r1), rarity_emoji(r2)
-    rv1 = f"{re1} {r1} \u2713" if rank1 > rank2 else f"{re1} {r1}"
-    rv2 = f"{re2} {r2} \u2713" if rank2 > rank1 else f"{re2} {r2}"
-    rows.append(("Rarity", rv1, rv2))
+    l1 = len(c1.extra.get("locations") or [])
+    l2 = len(c2.extra.get("locations") or [])
+    var1 = len(c1.extra.get("variants") or [])
+    var2 = len(c2.extra.get("variants") or [])
 
-    rows.append(("Boss", "\u2705" if c1.extra.get("boss") else "\u274c", "\u2705" if c2.extra.get("boss") else "\u274c"))
-    rows.append(("Mythical", "\u2705" if c1.extra.get("mythical") else "\u274c", "\u2705" if c2.extra.get("mythical") else "\u274c"))
+    def _col(c, other):
+        ex, ox = c.extra, other.extra
+        rarity = ex.get("rarity", "Common")
+        rr = rarity_rank(rarity)
+        orr = rarity_rank(ox.get("rarity", "Common"))
+        locs = len(ex.get("locations") or [])
+        olocs = len(ox.get("locations") or [])
+        varis = len(ex.get("variants") or [])
+        ovaris = len(ox.get("variants") or [])
+        return "\n".join([
+            f"{rarity_emoji(rarity)} {rarity}" + (" \u2713" if rr > orr else ""),
+            "\u2705" if ex.get("boss") else "\u274c",
+            "\u2705" if ex.get("mythical") else "\u274c",
+            format_time_window(c),
+            str(locs) + (" \u2713" if locs > olocs else ""),
+            str(varis) + (" \u2713" if varis > ovaris else ""),
+        ])
 
-    w1, w2 = format_time_window(c1), format_time_window(c2)
-    rows.append(("Window", w1, w2))
-
-    l1, l2 = len(c1.extra.get("locations") or []), len(c2.extra.get("locations") or [])
-    lv1, lv2 = winner_mark(l1, l2)
-    rows.append(("Locations", lv1, lv2))
-
-    var1, var2 = len(c1.extra.get("variants") or []), len(c2.extra.get("variants") or [])
-    vv1, vv2 = winner_mark(var1, var2)
-    rows.append(("Variants", vv1, vv2))
-
-    lw = max(len(r[0]) for r in rows)
-    c1w = max(len(c1.name), max(len(r[1]) for r in rows), 14)
-    c2w = max(len(c2.name), max(len(r[2]) for r in rows), 14)
-
-    header = f"{'':>{lw}} | {c1.name:<{c1w}} | {c2.name:<{c2w}}"
-    divider = f"{'-'*lw}-+-{'-'*c1w}-+-{'-'*c2w}"
-    table_rows = [f"{label:>{lw}} | {v1:<{c1w}} | {v2:<{c2w}}" for label, v1, v2 in rows]
-    embed.description = "```\n" + "\n".join([header, divider] + table_rows) + "\n```"
+    embed.add_field(name="\u200b", value="**Rarity**\n**Boss**\n**Mythical**\n**Window**\n**Locations**\n**Variants**", inline=True)
+    embed.add_field(name=c1.name, value=_col(c1, c2), inline=True)
+    embed.add_field(name=c2.name, value=_col(c2, c1), inline=True)
     return embed
 
 
@@ -305,33 +304,28 @@ def build_location_compare_embed(loc1, loc2) -> discord.Embed:
     def _count(loc, rarity):
         return len((loc.rarityFish or {}).get(rarity, []))
 
-    rows: list[tuple[str, str, str]] = []
+    _RARITIES = ["Rare", "Very Rare", "Absurdly Rare", "Mythical"]
+    labels = ["**Fish Pool**", "**Fail %**", "**Mine %**"] + [f"**{r[:8]} fish**" for r in _RARITIES]
 
-    c1 = len(loc1.extra.get("creatures") or [])
-    c2 = len(loc2.extra.get("creatures") or [])
-    cv1, cv2 = winner_mark(c1, c2)
-    rows.append(("Fish Pool", cv1, cv2))
+    def _col(loc, other):
+        ex, ox = loc.extra, other.extra
+        lc = len(ex.get("creatures") or [])
+        oc = len(ox.get("creatures") or [])
+        fc, ofc = ex.get("failChance", 0), ox.get("failChance", 0)
+        mc, omc = ex.get("mineChance", 0), ox.get("mineChance", 0)
+        vals = [
+            str(lc) + (" \u2713" if lc > oc else ""),
+            str(fc) + (" \u2713" if fc < ofc else ""),
+            str(mc) + (" \u2713" if mc < omc else ""),
+        ]
+        for rarity in _RARITIES:
+            r, o = _count(loc, rarity), _count(other, rarity)
+            vals.append(str(r) + (" \u2713" if r > o else ""))
+        return "\n".join(vals)
 
-    f1, f2 = loc1.extra.get("failChance", 0), loc2.extra.get("failChance", 0)
-    fv1, fv2 = winner_mark(f1, f2, higher_is_better=False)
-    rows.append(("Fail %", fv1, fv2))
-
-    m1, m2 = loc1.extra.get("mineChance", 0), loc2.extra.get("mineChance", 0)
-    mv1, mv2 = winner_mark(m1, m2, higher_is_better=False)
-    rows.append(("Mine %", mv1, mv2))
-
-    for rarity in ["Rare", "Very Rare", "Absurdly Rare", "Mythical"]:
-        r1, r2 = _count(loc1, rarity), _count(loc2, rarity)
-        rv1, rv2 = winner_mark(r1, r2)
-        rows.append((f"{rarity[:8]} fish", rv1, rv2))
-
-    lw = max(len(r[0]) for r in rows)
-    c1w = max(len(loc1.name), max(len(r[1]) for r in rows), 12)
-    c2w = max(len(loc2.name), max(len(r[2]) for r in rows), 12)
-    header = f"{'':>{lw}} | {loc1.name:<{c1w}} | {loc2.name:<{c2w}}"
-    divider = f"{'-'*lw}-+-{'-'*c1w}-+-{'-'*c2w}"
-    table_rows = [f"{label:>{lw}} | {v1:<{c1w}} | {v2:<{c2w}}" for label, v1, v2 in rows]
-    embed.description = "```\n" + "\n".join([header, divider] + table_rows) + "\n```"
+    embed.add_field(name="\u200b", value="\n".join(labels), inline=True)
+    embed.add_field(name=loc1.name, value=_col(loc1, loc2), inline=True)
+    embed.add_field(name=loc2.name, value=_col(loc2, loc1), inline=True)
     return embed
 
 
@@ -469,21 +463,18 @@ def build_bait_compare_embed(bait1, bait2) -> discord.Embed:
 
     e1, e2 = bait1.extra, bait2.extra
     u1, u2 = e1.get("usage", 0), e2.get("usage", 0)
-    uv1, uv2 = winner_mark(u1, u2)
 
-    rows: list[tuple[str, str, str]] = [
-        ("Idle OK", "\u2705" if e1.get("idle") else "\u274c", "\u2705" if e2.get("idle") else "\u274c"),
-        ("Usage", uv1, uv2),
-        ("Effect", (e1.get("explanation") or "\u2014")[:40], (e2.get("explanation") or "\u2014")[:40]),
-    ]
+    def _col(ex, ox):
+        u, ou = ex.get("usage", 0), ox.get("usage", 0)
+        return "\n".join([
+            "\u2705" if ex.get("idle") else "\u274c",
+            str(u) + (" \u2713" if u > ou else ""),
+            (ex.get("explanation") or "\u2014")[:60],
+        ])
 
-    lw = max(len(r[0]) for r in rows)
-    c1w = max(len(bait1.name), max(len(r[1]) for r in rows), 12)
-    c2w = max(len(bait2.name), max(len(r[2]) for r in rows), 12)
-    header = f"{'':>{lw}} | {bait1.name:<{c1w}} | {bait2.name:<{c2w}}"
-    divider = f"{'-'*lw}-+-{'-'*c1w}-+-{'-'*c2w}"
-    table_rows = [f"{label:>{lw}} | {v1:<{c1w}} | {v2:<{c2w}}" for label, v1, v2 in rows]
-    embed.description = "```\n" + "\n".join([header, divider] + table_rows) + "\n```"
+    embed.add_field(name="\u200b", value="**Idle OK**\n**Usage**\n**Effect**", inline=True)
+    embed.add_field(name=bait1.name, value=_col(e1, e2), inline=True)
+    embed.add_field(name=bait2.name, value=_col(e2, e1), inline=True)
     return embed
 
 
