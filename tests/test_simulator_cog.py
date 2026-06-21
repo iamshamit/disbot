@@ -214,3 +214,20 @@ async def test_call_simulator_api_posts_correct_headers():
     call_kwargs = mock_session.post.call_args
     headers = call_kwargs.kwargs.get("headers") or call_kwargs[1].get("headers", {})
     assert headers.get("Origin") == "https://dankmemer.lol"
+
+
+@pytest.mark.asyncio
+async def test_simulator_view_skills_btn_opens_picker():
+    from cogs.simulator import SimulatorView, SkillsPickerView
+    db = MagicMock()
+    db.get_or_create_user = AsyncMock(return_value={"skills": None, "boss_unlock": 0,
+        "favorite_location": None, "current_tool": None, "current_bait": None, "current_event": None})
+    dc = make_dc()
+    member = make_member()
+    view = SimulatorView(db, member, dc)
+    interaction = make_interaction()
+    # The skills_btn should edit the message to show a SkillsPickerView
+    await view.skills_btn.callback(interaction)
+    interaction.response.edit_message.assert_called_once()
+    call_kwargs = interaction.response.edit_message.call_args.kwargs
+    assert isinstance(call_kwargs.get("view"), SkillsPickerView)

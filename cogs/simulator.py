@@ -6,10 +6,9 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.embeds import EmbedBuilder
+from utils.embeds import EmbedBuilder, _ROMAN
 
 SKILL_CATEGORIES_ORDER = ["Economy", "Nature", "Science", "Social"]
-_ROMAN = ("", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX")
 _SIM_URL = "https://dankmemer.lol/api/bot/fish/simulator"
 _SIM_HEADERS = {
     "Origin": "https://dankmemer.lol",
@@ -280,32 +279,32 @@ class SimulatorView(discord.ui.View):
             if isinstance(item, discord.ui.Select):
                 self.remove_item(item)
 
-        loc_opts = [discord.SelectOption(label="— No Location —", value="__none__")] + [
-            discord.SelectOption(label=l.name, value=l.id)
+        loc_opts = [discord.SelectOption(label="— No Location —", value="__none__", default=self._loc_id is None)] + [
+            discord.SelectOption(label=l.name, value=l.id, default=l.id == self._loc_id)
             for l in sorted(self.dc.location_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._loc_sel = discord.ui.Select(placeholder="📍 Location…", options=loc_opts, min_values=0, max_values=1, row=0)
         self._loc_sel.callback = self._on_select
         self.add_item(self._loc_sel)
 
-        tool_opts = [discord.SelectOption(label="— No Tool —", value="__none__")] + [
-            discord.SelectOption(label=t.name, value=t.id)
+        tool_opts = [discord.SelectOption(label="— No Tool —", value="__none__", default=self._tool_id is None)] + [
+            discord.SelectOption(label=t.name, value=t.id, default=t.id == self._tool_id)
             for t in sorted(self.dc.tool_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._tool_sel = discord.ui.Select(placeholder="🔧 Tool…", options=tool_opts, min_values=0, max_values=1, row=1)
         self._tool_sel.callback = self._on_select
         self.add_item(self._tool_sel)
 
-        bait_opts = [discord.SelectOption(label="— No Bait —", value="__none__")] + [
-            discord.SelectOption(label=b.name, value=b.id)
+        bait_opts = [discord.SelectOption(label="— No Bait —", value="__none__", default=self._bait_id is None)] + [
+            discord.SelectOption(label=b.name, value=b.id, default=b.id == self._bait_id)
             for b in sorted(self.dc.bait_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._bait_sel = discord.ui.Select(placeholder="🪱 Bait…", options=bait_opts, min_values=0, max_values=1, row=2)
         self._bait_sel.callback = self._on_select
         self.add_item(self._bait_sel)
 
-        event_opts = [discord.SelectOption(label="— No Event —", value="__none__")] + [
-            discord.SelectOption(label=e.name, value=e.id)
+        event_opts = [discord.SelectOption(label="— No Event —", value="__none__", default=self._event_id is None)] + [
+            discord.SelectOption(label=e.name, value=e.id, default=e.id == self._event_id)
             for e in sorted(self.dc.event_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._event_sel = discord.ui.Select(placeholder="🎉 Event…", options=event_opts, min_values=0, max_values=1, row=3)

@@ -228,8 +228,8 @@ class LocationView(discord.ui.View):
             embed = build_sim_results_embed(data, view._current_state(), dc)
             view._last_embed = embed
             await db.add_history(str(interaction.user.id), "simulation", self.loc.id, data=_json.dumps(data))
-        except Exception:
-            embed = _EB.info("🎣 Simulator", "Select your options and click **🔄 Calculate**.")
+        except Exception as exc:
+            embed = _EB.error("Simulator error", f"Could not calculate: {exc}")
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
