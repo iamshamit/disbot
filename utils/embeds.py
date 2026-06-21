@@ -505,3 +505,63 @@ def build_npc_embed(npc) -> discord.Embed:
     embed.description = "\n".join(lines)[:4096] if lines else "No additional data available."
     embed.set_footer(text=f"Internal ID: {getattr(npc, 'id', '?')}")
     return embed
+
+
+def build_profile_embed(user_row, member) -> discord.Embed:
+    embed = discord.Embed(color=0x5865F2)
+    embed.set_author(name="\U0001f464 Profile")
+    embed.title = getattr(member, "display_name", str(member))
+    if hasattr(member, "display_avatar") and member.display_avatar:
+        embed.set_thumbnail(url=str(member.display_avatar.url))
+
+    rod = user_row["fishing_rod"] or "Wooden Rod"
+    tool = user_row["current_tool"] or "None"
+    bait = user_row["current_bait"] or "None"
+    embed.add_field(
+        name="\U0001f3a3 SETUP",
+        value=f"Rod: **{rod}**  ·  Tool: **{tool}**  ·  Bait: **{bait}**",
+        inline=False,
+    )
+
+    fs = user_row["fishing_skill"] or 0
+    ls = user_row["luck_skill"] or 0
+    es = user_row["efficiency_skill"] or 0
+    prestige = user_row["prestige"] or 0
+    coins = user_row["coins"] or 0
+    embed.add_field(
+        name="\U0001f4ca SKILLS",
+        value=(
+            f"Fishing: **{fs}**  ·  Luck: **{ls}**  ·  Efficiency: **{es}**\n"
+            f"Prestige: **{prestige}**  ·  Coins: **{coins:,}**"
+        ),
+        inline=False,
+    )
+
+    boss = "✅" if user_row["boss_unlock"] else "❌"
+    myth = "✅" if user_row["mythical_unlock"] else "❌"
+    embed.add_field(
+        name="\U0001f513 UNLOCKS",
+        value=f"\U0001f451 Boss: {boss}  ·  ✨ Mythical: {myth}",
+        inline=False,
+    )
+
+    weather = user_row["current_weather"] or "None"
+    event = user_row["current_event"] or "None"
+    embed.add_field(
+        name="\U0001f324️ ENVIRONMENT",
+        value=f"Weather: **{weather}**  ·  Event: **{event}**",
+        inline=False,
+    )
+
+    ff = user_row["favorite_fish"] or "None"
+    fl = user_row["favorite_location"] or "None"
+    ft = user_row["favorite_tool"] or "None"
+    fb = user_row["favorite_bait"] or "None"
+    embed.add_field(
+        name="⭐ FAVOURITES",
+        value=f"Fish: **{ff}**  ·  Location: **{fl}**\nTool: **{ft}**  ·  Bait: **{fb}**",
+        inline=False,
+    )
+
+    embed.set_footer(text=f"Last updated: {user_row['updated_at'] or 'Never'}")
+    return embed
