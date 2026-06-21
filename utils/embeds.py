@@ -594,9 +594,9 @@ def _relative_time(ts_str: str | None) -> str:
     if not ts_str:
         return "unknown"
     try:
-        from datetime import datetime as _dt
-        dt = _dt.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
-        delta = _dt.utcnow() - dt
+        dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        delta = now - dt
         secs = int(delta.total_seconds())
         if secs < 60:
             return "just now"
@@ -624,7 +624,8 @@ def build_history_embed(rows: list, member, tab: str) -> discord.Embed:
     )
     embed.set_author(name="\U0001f4dc History")
     if not rows:
-        embed.description = f"No {tab} history yet."
+        tab_display = tab_labels.get(tab, tab.capitalize())
+        embed.description = f"No {tab_display} history yet."
         return embed
     lines = []
     for i, row in enumerate(rows, 1):

@@ -486,7 +486,7 @@ async def test_timezone_modal_saves_valid_tz():
     from cogs.profile import TimezoneModal
     db = MagicMock()
     db.update_user = AsyncMock()
-    db.get_user = AsyncMock(return_value=make_user_row(timezone="Asia/Kolkata"))
+    db.get_or_create_user = AsyncMock(return_value=make_user_row(timezone="Asia/Kolkata"))
     member = make_member()
     message = AsyncMock()
     modal = TimezoneModal(db, member, message, "UTC")
@@ -495,3 +495,4 @@ async def test_timezone_modal_saves_valid_tz():
     await modal.on_submit(interaction)
     db.update_user.assert_called_once()
     assert db.update_user.call_args.kwargs.get("timezone") == "Asia/Kolkata"
+    db.get_or_create_user.assert_called_once_with("123")

@@ -483,6 +483,19 @@ class HistoryView(discord.ui.View):
         rows = await self.db.get_history(str(self.user.id), tab)
         from utils.embeds import build_history_embed
         embed = build_history_embed(rows, self.user, tab)
+        # Update button styles: active tab → primary, others → secondary (skip disabled)
+        tab_map = {
+            "fish": "fish_tab",
+            "location": "location_tab",
+            "command": "command_tab",
+        }
+        for item in self.children:
+            if isinstance(item, discord.ui.Button) and not item.disabled:
+                for tab_key, attr_name in tab_map.items():
+                    btn = getattr(self, attr_name, None)
+                    if btn is item:
+                        item.style = discord.ButtonStyle.primary if tab_key == tab else discord.ButtonStyle.secondary
+                        break
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="\U0001f420 Fish", style=discord.ButtonStyle.primary, row=0)
@@ -531,12 +544,11 @@ class TimezoneModal(discord.ui.Modal, title="Set Timezone"):
             )
             return
         await self.db.update_user(str(self.member.id), timezone=tz_str)
-        user_row = await self.db.get_user(str(self.member.id))
+        user_row = await self.db.get_or_create_user(str(self.member.id))
         from utils.embeds import build_settings_embed
-        await self.message.edit(
-            embed=build_settings_embed(user_row),
-            view=SettingsView(self.db, self.member),
-        )
+        new_settings_view = SettingsView(self.db, self.member)
+        new_settings_view.message = self.message
+        await self.message.edit(embed=build_settings_embed(user_row), view=new_settings_view)
         await interaction.response.defer()
 
 
@@ -558,7 +570,7 @@ class SettingsView(discord.ui.View):
 
     @discord.ui.button(label="\U0001f30d Set Timezone", style=discord.ButtonStyle.secondary, row=0)
     async def timezone_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_row = await self.db.get_user(str(self.member.id))
+        user_row = await self.db.get_or_create_user(str(self.member.id))
         current_tz = (user_row["timezone"] if user_row else None) or "UTC"
         await interaction.response.send_modal(
             TimezoneModal(self.db, self.member, interaction.message, current_tz)
@@ -566,23 +578,23 @@ class SettingsView(discord.ui.View):
 
     @discord.ui.button(label="\U0001f319 Theme: Dark", style=discord.ButtonStyle.secondary, row=0)
     async def theme_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_row = await self.db.get_user(str(self.member.id))
+        user_row = await self.db.get_or_create_user(str(self.member.id))
         current = (user_row["theme"] if user_row else None) or "dark"
         new_theme = "light" if current == "dark" else "dark"
         await self.db.update_user(str(self.member.id), theme=new_theme)
         button.label = f"{'🌕' if new_theme == 'light' else '🌑'} Theme: {'Light' if new_theme == 'light' else 'Dark'}"
-        user_row = await self.db.get_user(str(self.member.id))
+        user_row = await self.db.get_or_create_user(str(self.member.id))
         from utils.embeds import build_settings_embed
         await interaction.response.edit_message(embed=build_settings_embed(user_row), view=self)
 
     @discord.ui.button(label="\U0001f4c4 Compact: Off", style=discord.ButtonStyle.secondary, row=0)
     async def compact_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_row = await self.db.get_user(str(self.member.id))
+        user_row = await self.db.get_or_create_user(str(self.member.id))
         current = bool(user_row["compact_mode"] if user_row else False)
         new_val = not current
         await self.db.update_user(str(self.member.id), compact_mode=int(new_val))
         button.label = f"\U0001f4c4 Compact: {'On' if new_val else 'Off'}"
-        user_row = await self.db.get_user(str(self.member.id))
+        user_row = await self.db.get_or_create_user(str(self.member.id))
         from utils.embeds import build_settings_embed
         await interaction.response.edit_message(embed=build_settings_embed(user_row), view=self)
 
