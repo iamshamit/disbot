@@ -1,5 +1,7 @@
 from __future__ import annotations
 import json as _json
+from datetime import datetime, timezone
+import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -8,6 +10,12 @@ from utils.embeds import EmbedBuilder
 
 SKILL_CATEGORIES_ORDER = ["Economy", "Nature", "Science", "Social"]
 _ROMAN = ("", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX")
+_SIM_URL = "https://dankmemer.lol/api/bot/fish/simulator"
+_SIM_HEADERS = {
+    "Origin": "https://dankmemer.lol",
+    "Referer": "https://dankmemer.lol/fishing/simulator",
+    "Content-Type": "application/json",
+}
 
 
 def _picker_embed(title: str) -> discord.Embed:
@@ -18,13 +26,60 @@ def _picker_embed(title: str) -> discord.Embed:
     )
 
 
-class SkillsPickerView(discord.ui.View):
-    """
-    4-category paginated skills picker. Shared between profile and simulator.
-    return_fn: async callable(interaction) → None — called on both Save and Cancel.
-    Save first writes pending skills to DB.
-    """
+async def call_simulator_api(payload: dict) -> dict:
+    async with aiohttp.ClientSession() as session:
+        async with session.post(_SIM_URL, json=payload, headers=_SIM_HEADERS) as resp:
+            resp.raise_for_status()
+            return await resp.json()
 
+
+def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
+    fail = data.get("failChance", 0)
+    npc = data.get("npcChance", 0)
+
+    loc_id = state.get("location_id")
+    loc_name = dc.location_by_id[loc_id].name if loc_id and loc_id in dc.location_by_id else "No Location"
+    hour = state.get("hour", 0)
+
+    embed = discord.Embed(title=f"🎣 {loc_name}", color=0x5865F2)
+    embed.set_author(name="🎣 Simulator")
+    embed.description = f"Hour: **{hour:02d}:00 UTC**"
+    embed.add_field(name="❌ Fail", value=f"{fail:.1f}%", inline=True)
+    embed.add_field(name="👤 NPC", value=f"{npc:.1f}%", inline=True)
+
+    table = sorted(data.get("table", []), key=lambda x: x.get("chance", 0), reverse=True)
+    lines = []
+    for entry in table[:20]:
+        chance = entry.get("chance", 0)
+        base = entry.get("baseChance", chance)
+        val = entry.get("value", {})
+        if val.get("type") == "fish-creature":
+            cid = val.get("creatureID", "")
+            name = dc.fish_by_id[cid].name if cid in dc.fish_by_id else cid
+        elif val.get("type") == "fish-bait":
+            bid = val.get("baitID", "")
+            name = dc.bait_by_id[bid].name if bid in dc.bait_by_id else bid
+        else:
+            name = "Misc Loot"
+        lines.append(f"`{chance:5.1f}%` (base `{base:.1f}%`) {name}")
+    if lines:
+        embed.add_field(name="📊 Catch Table", value="\n".join(lines), inline=False)
+
+    var_lines = []
+    for cid, var_list in data.get("variants", {}).items():
+        name = dc.fish_by_id[cid].name if cid in dc.fish_by_id else cid
+        parts = [f"{v['type'].capitalize()}: {v['chance']:.1f}%" for v in var_list if v.get("chance", 0) > 0]
+        if parts:
+            var_lines.append(f"**{name}** — {' · '.join(parts)}")
+    if var_lines:
+        embed.add_field(name="✨ Variants", value="\n".join(var_lines[:10]), inline=False)
+
+    return embed
+
+
+# SkillsPickerView  (defined here; imported by cogs/profile.py)
+
+class SkillsPickerView(discord.ui.View):
     def __init__(self, db, member, dc, current_skills: dict, return_fn):
         super().__init__(timeout=300)
         self.db = db
@@ -48,8 +103,6 @@ class SkillsPickerView(discord.ui.View):
 
     def _rebuild(self) -> None:
         self.clear_items()
-
-        # Row 0: category tab buttons
         for cat in SKILL_CATEGORIES_ORDER:
             if cat not in self.dc.skill_categories:
                 continue
@@ -61,7 +114,6 @@ class SkillsPickerView(discord.ui.View):
             btn.callback = self._make_cat_cb(cat)
             self.add_item(btn)
 
-        # Rows 1-3: up to 3 skill selects for current page
         skills = self._skills_for_cat()
         page_skills = skills[self._page * 3 : self._page * 3 + 3]
         for i, skill in enumerate(page_skills):
@@ -83,26 +135,16 @@ class SkillsPickerView(discord.ui.View):
             sel.callback = self._make_skill_cb(base, sel)
             self.add_item(sel)
 
-        # Row 4: nav + save/cancel
         page_count = self._page_count()
-        prev_btn = discord.ui.Button(
-            label="◀", style=discord.ButtonStyle.secondary,
-            disabled=self._page == 0, row=4,
-        )
+        prev_btn = discord.ui.Button(label="◀", style=discord.ButtonStyle.secondary, disabled=self._page == 0, row=4)
         prev_btn.callback = self._prev_page
         self.add_item(prev_btn)
-
-        next_btn = discord.ui.Button(
-            label="▶", style=discord.ButtonStyle.secondary,
-            disabled=self._page >= page_count - 1, row=4,
-        )
+        next_btn = discord.ui.Button(label="▶", style=discord.ButtonStyle.secondary, disabled=self._page >= page_count - 1, row=4)
         next_btn.callback = self._next_page
         self.add_item(next_btn)
-
         save_btn = discord.ui.Button(label="✅ Save", style=discord.ButtonStyle.success, row=4)
         save_btn.callback = self._save
         self.add_item(save_btn)
-
         cancel_btn = discord.ui.Button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=4)
         cancel_btn.callback = self._cancel
         self.add_item(cancel_btn)
@@ -139,22 +181,297 @@ class SkillsPickerView(discord.ui.View):
                 merged.pop(base, None)
             else:
                 merged[base] = tier
-        skills_value = _json.dumps(merged) if merged else None
-        await self.db.update_user(str(self.member.id), skills=skills_value)
+        await self.db.update_user(str(self.member.id), skills=_json.dumps(merged) if merged else None)
         await self._return_fn(interaction)
 
     async def _cancel(self, interaction: discord.Interaction) -> None:
         await self._return_fn(interaction)
 
 
+class TimeModal(discord.ui.Modal, title="Set UTC Hour"):
+    hour: discord.ui.TextInput = discord.ui.TextInput(
+        label="UTC Hour (0–23)", placeholder="e.g. 14", required=True, max_length=2
+    )
+
+    def __init__(self, parent: "SimulatorView"):
+        super().__init__()
+        self.parent = parent
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            h = int(self.hour.value.strip())
+            if not (0 <= h <= 23):
+                raise ValueError
+            self.parent._hour = h
+            await interaction.response.defer()
+        except ValueError:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Invalid hour", "Enter a whole number between 0 and 23."),
+                ephemeral=True,
+            )
+
+
+class ExtrasView(discord.ui.View):
+    def __init__(self, parent: "SimulatorView", current_embed: discord.Embed):
+        super().__init__(timeout=120)
+        self.parent = parent
+        self.current_embed = current_embed
+
+        yn = [
+            discord.SelectOption(label="✅ Yes", value="1"),
+            discord.SelectOption(label="❌ No", value="0"),
+        ]
+        self._tuesday_sel = discord.ui.Select(placeholder="📅 Angler Tuesday…", options=yn, min_values=0, max_values=1, row=0)
+        self._tuesday_sel.callback = self._defer
+        self.add_item(self._tuesday_sel)
+
+        self._invasion_sel = discord.ui.Select(placeholder="⚔️ Active Invasion…", options=yn, min_values=0, max_values=1, row=1)
+        self._invasion_sel.callback = self._defer
+        self.add_item(self._invasion_sel)
+
+        self._winner_sel = discord.ui.Select(placeholder="🏆 Location Winner…", options=yn, min_values=0, max_values=1, row=2)
+        self._winner_sel.callback = self._defer
+        self.add_item(self._winner_sel)
+
+    async def _defer(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+
+    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=3)
+    async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self._tuesday_sel.values:
+            self.parent._angler_tuesday = self._tuesday_sel.values[0] == "1"
+        if self._invasion_sel.values:
+            self.parent._invasion = self._invasion_sel.values[0] == "1"
+        if self._winner_sel.values:
+            self.parent._loc_winner = self._winner_sel.values[0] == "1"
+        await interaction.response.edit_message(embed=self.current_embed, view=self.parent)
+
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=3)
+    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=self.current_embed, view=self.parent)
+
+
+class SimulatorView(discord.ui.View):
+    def __init__(self, db, member, dc, initial_state: dict | None = None):
+        super().__init__(timeout=300)
+        self.db = db
+        self.member = member
+        self.dc = dc
+        self._loc_id: str | None = None
+        self._tool_id: str | None = None
+        self._bait_id: str | None = None
+        self._event_id: str | None = None
+        self._hour: int = datetime.now(timezone.utc).hour
+        self._angler_tuesday: bool = False
+        self._invasion: bool = False
+        self._loc_winner: bool = False
+        self._last_embed: discord.Embed | None = None
+        if initial_state:
+            self._loc_id = initial_state.get("location_id")
+            self._tool_id = initial_state.get("tool_id")
+            self._bait_id = initial_state.get("bait_id")
+            self._event_id = initial_state.get("event_id")
+            self._hour = initial_state.get("hour", self._hour)
+        self._build_selects()
+
+    def _build_selects(self) -> None:
+        for item in list(self.children):
+            if isinstance(item, discord.ui.Select):
+                self.remove_item(item)
+
+        loc_opts = [discord.SelectOption(label="— No Location —", value="__none__")] + [
+            discord.SelectOption(label=l.name, value=l.id)
+            for l in sorted(self.dc.location_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._loc_sel = discord.ui.Select(placeholder="📍 Location…", options=loc_opts, min_values=0, max_values=1, row=0)
+        self._loc_sel.callback = self._on_select
+        self.add_item(self._loc_sel)
+
+        tool_opts = [discord.SelectOption(label="— No Tool —", value="__none__")] + [
+            discord.SelectOption(label=t.name, value=t.id)
+            for t in sorted(self.dc.tool_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._tool_sel = discord.ui.Select(placeholder="🔧 Tool…", options=tool_opts, min_values=0, max_values=1, row=1)
+        self._tool_sel.callback = self._on_select
+        self.add_item(self._tool_sel)
+
+        bait_opts = [discord.SelectOption(label="— No Bait —", value="__none__")] + [
+            discord.SelectOption(label=b.name, value=b.id)
+            for b in sorted(self.dc.bait_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._bait_sel = discord.ui.Select(placeholder="🪱 Bait…", options=bait_opts, min_values=0, max_values=1, row=2)
+        self._bait_sel.callback = self._on_select
+        self.add_item(self._bait_sel)
+
+        event_opts = [discord.SelectOption(label="— No Event —", value="__none__")] + [
+            discord.SelectOption(label=e.name, value=e.id)
+            for e in sorted(self.dc.event_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._event_sel = discord.ui.Select(placeholder="🎉 Event…", options=event_opts, min_values=0, max_values=1, row=3)
+        self._event_sel.callback = self._on_select
+        self.add_item(self._event_sel)
+
+    async def _on_select(self, interaction: discord.Interaction) -> None:
+        if self._loc_sel.values:
+            v = self._loc_sel.values[0]
+            self._loc_id = None if v == "__none__" else v
+        if self._tool_sel.values:
+            v = self._tool_sel.values[0]
+            self._tool_id = None if v == "__none__" else v
+        if self._bait_sel.values:
+            v = self._bait_sel.values[0]
+            self._bait_id = None if v == "__none__" else v
+        if self._event_sel.values:
+            v = self._event_sel.values[0]
+            self._event_id = None if v == "__none__" else v
+        await interaction.response.defer()
+
+    def _build_payload(self, user_row) -> dict:
+        try:
+            skills = _json.loads(user_row["skills"]) if user_row["skills"] else {}
+        except (ValueError, TypeError, KeyError, IndexError):
+            skills = {}
+        now = datetime.now(timezone.utc)
+        ts = int(now.replace(hour=self._hour, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        return {
+            "locationID": self._loc_id,
+            "toolID": self._tool_id,
+            "baitsIDs": [self._bait_id] if self._bait_id else [],
+            "time": ts,
+            "events": [self._event_id] if self._event_id else [],
+            "bosses": bool(user_row["boss_unlock"]),
+            "skills": skills,
+            "bonusBossMultiplier": 1,
+            "bonusMythicalMultiplier": 1,
+            "forceTrash": False,
+            "mythicalFishID": None,
+            "discoveredCreatures": None,
+            "anglerTuesday": self._angler_tuesday,
+            "invasion": None,
+            "locationWinner": self._loc_winner,
+        }
+
+    def _current_state(self) -> dict:
+        return {
+            "location_id": self._loc_id,
+            "tool_id": self._tool_id,
+            "bait_id": self._bait_id,
+            "event_id": self._event_id,
+            "hour": self._hour,
+        }
+
+    @discord.ui.button(label="🔄 Calculate", style=discord.ButtonStyle.primary, row=4)
+    async def calculate_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        user_row = await self.db.get_or_create_user(str(self.member.id))
+        payload = self._build_payload(user_row)
+        try:
+            data = await call_simulator_api(payload)
+        except Exception as exc:
+            await interaction.followup.send(
+                embed=EmbedBuilder.error("API Error", f"Simulator request failed: {exc}"),
+                ephemeral=True,
+            )
+            return
+        embed = build_sim_results_embed(data, self._current_state(), self.dc)
+        self._last_embed = embed
+        await interaction.edit_original_response(embed=embed, view=self)
+        await self.db.add_history(
+            str(self.member.id), "simulation",
+            self._loc_id or "unknown",
+            data=_json.dumps(data),
+        )
+
+    @discord.ui.button(label="👥 Skills", style=discord.ButtonStyle.secondary, row=4)
+    async def skills_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_row = await self.db.get_user(str(self.member.id))
+        try:
+            current_skills = _json.loads(user_row["skills"]) if user_row["skills"] else {}
+        except (ValueError, TypeError, KeyError, IndexError):
+            current_skills = {}
+        sim_embed = self._last_embed or EmbedBuilder.info("Simulator", "Click 🔄 Calculate to see results.")
+        sim_view = self
+
+        async def return_fn(inter: discord.Interaction) -> None:
+            await inter.response.edit_message(embed=sim_embed, view=sim_view)
+
+        await interaction.response.edit_message(
+            embed=_picker_embed("👥 Skills"),
+            view=SkillsPickerView(self.db, self.member, self.dc, current_skills, return_fn),
+        )
+
+    @discord.ui.button(label="⚙️ Extras", style=discord.ButtonStyle.secondary, row=4)
+    async def extras_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        current_embed = self._last_embed or EmbedBuilder.info("Simulator", "Click 🔄 Calculate to see results.")
+        await interaction.response.edit_message(
+            embed=_picker_embed("⚙️ Extras"),
+            view=ExtrasView(self, current_embed),
+        )
+
+    @discord.ui.button(label="🕐 Set Time", style=discord.ButtonStyle.secondary, row=4)
+    async def set_time_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TimeModal(self))
+
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=4)
+    async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+
 class SimulatorCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="simulate", description="Simulate fishing (coming in Phase 3 Task 3)")
+    @app_commands.command(name="simulate", description="Simulate a fishing attempt with your current setup")
     async def simulate(self, interaction: discord.Interaction):
-        embed = EmbedBuilder.info("Simulator", "Full simulator coming soon.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        dc = self.bot.dank_client
+        db = self.bot.db
+        if not dc or not dc.fish_by_id:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not ready", "Game data still loading."), ephemeral=True
+            )
+            return
+        if not db:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not available", "Database unavailable."), ephemeral=True
+            )
+            return
+
+        user_row = await db.get_or_create_user(str(interaction.user.id))
+
+        loc_id = None
+        if user_row["favorite_location"]:
+            loc = dc.location_by_name.get(user_row["favorite_location"].lower())
+            if loc:
+                loc_id = loc.id
+
+        tool_id = None
+        if user_row["current_tool"]:
+            tool = dc.tool_by_name.get(user_row["current_tool"].lower())
+            if tool:
+                tool_id = tool.id
+
+        bait_id = None
+        if user_row["current_bait"]:
+            bait = dc.bait_by_name.get(user_row["current_bait"].lower())
+            if bait:
+                bait_id = bait.id
+
+        event_id = None
+        if user_row["current_event"]:
+            ev = dc.event_by_name.get(user_row["current_event"].lower())
+            if ev:
+                event_id = ev.id
+
+        initial_state = {
+            "location_id": loc_id,
+            "tool_id": tool_id,
+            "bait_id": bait_id,
+            "event_id": event_id,
+            "hour": datetime.now(timezone.utc).hour,
+        }
+        view = SimulatorView(db, interaction.user, dc, initial_state=initial_state)
+        embed = EmbedBuilder.info("🎣 Simulator", "Select your options and click **🔄 Calculate**.")
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
