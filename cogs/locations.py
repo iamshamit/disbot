@@ -65,12 +65,27 @@ class BackToLocationView(discord.ui.View):
 
 
 class LocationView(discord.ui.View):
-    def __init__(self, location, dank_client):
+    def __init__(self, location, dank_client, db=None, user_id=None, is_faved=False):
         super().__init__(timeout=300)
         self.loc = location
         self.dc = dank_client
+        self.db = db
+        self.user_id = user_id
+        self._is_faved = is_faved
         self.message: discord.Message | None = None
         self._build_fish_select()
+        # Configure fav button
+        fav_btn = next(
+            item for item in self.children
+            if isinstance(item, discord.ui.Button) and "Favour" in item.label
+        )
+        if db is None:
+            fav_btn.disabled = True
+        else:
+            fav_btn.disabled = False
+            if is_faved:
+                fav_btn.label = "💛 Unfavourite"
+                fav_btn.style = discord.ButtonStyle.primary
 
     def _build_fish_select(self):
         creatures = self.dc.location_creature_map.get(self.loc.id, [])
@@ -149,7 +164,7 @@ class LocationView(discord.ui.View):
             )
             return
         from cogs.fish import FishView
-        view = FishView(creature, self.dc)
+        view = FishView(creature, self.dc, db=self.db, user_id=self.user_id)
         embed = build_fish_embed(creature, self.dc)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         view.message = await interaction.original_response()
@@ -164,9 +179,19 @@ class LocationView(discord.ui.View):
     async def sim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         pass
 
-    @discord.ui.button(label="🤍 Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
+    @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def fav_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        if self._is_faved:
+            await self.db.remove_favorite(self.user_id, "location", self.loc.id)
+            self._is_faved = False
+            button.label = "⭐ Favourite"
+            button.style = discord.ButtonStyle.secondary
+        else:
+            await self.db.add_favorite(self.user_id, "location", self.loc.id)
+            self._is_faved = True
+            button.label = "💛 Unfavourite"
+            button.style = discord.ButtonStyle.primary
+        await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=1)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -262,7 +287,16 @@ class LocationsCog(commands.Cog):
                 embed=EmbedBuilder.error("Not found", _NOT_FOUND.format(name=name)), ephemeral=True
             )
             return
-        view = LocationView(loc, self.bot.dank_client)
+        user_id = str(interaction.user.id)
+        is_faved = False
+        if self.bot.db:
+            try:
+                favs = await self.bot.db.get_favorites(user_id, "location")
+                is_faved = any(f["item_id"] == loc.id for f in favs)
+                await self.bot.db.add_history(user_id, "location", loc.id)
+            except Exception:
+                pass
+        view = LocationView(loc, self.bot.dank_client, db=self.bot.db, user_id=user_id, is_faved=is_faved)
         embed = build_location_embed(loc, self.bot.dank_client)
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()

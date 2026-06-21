@@ -666,3 +666,97 @@ async def test_setup_adds_cog():
     bot.add_cog.assert_called_once()
     cog_arg = bot.add_cog.call_args.args[0]
     assert isinstance(cog_arg, FishCog)
+
+
+# ---------------------------------------------------------------------------
+# FishView — Favourite button
+# ---------------------------------------------------------------------------
+
+def test_fishview_fav_btn_disabled_when_no_db():
+    from cogs.fish import FishView
+    creature = make_creature()
+    dc = make_mock_dank_client()
+    view = FishView(creature, dc)  # no db/user_id — existing call style
+    fav_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "Favour" in item.label
+    )
+    assert fav_btn.disabled is True
+
+
+def test_fishview_fav_btn_enabled_when_db_provided():
+    from cogs.fish import FishView
+    creature = make_creature()
+    dc = make_mock_dank_client()
+    db = MagicMock()
+    view = FishView(creature, dc, db=db, user_id="123", is_faved=False)
+    fav_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "Favour" in item.label
+    )
+    assert fav_btn.disabled is False
+
+
+def test_fishview_fav_btn_label_unfavourite_when_faved():
+    from cogs.fish import FishView
+    creature = make_creature()
+    dc = make_mock_dank_client()
+    db = MagicMock()
+    view = FishView(creature, dc, db=db, user_id="123", is_faved=True)
+    fav_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "avourite" in item.label
+    )
+    assert "Unfavourite" in fav_btn.label or "💛" in fav_btn.label
+
+
+@pytest.mark.asyncio
+async def test_fishview_fav_btn_adds_favourite():
+    from cogs.fish import FishView
+    creature = make_creature(id="goldfish")
+    dc = make_mock_dank_client()
+    db = MagicMock()
+    db.add_favorite = AsyncMock()
+    db.remove_favorite = AsyncMock()
+    view = FishView(creature, dc, db=db, user_id="123", is_faved=False)
+    fav_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "Favour" in item.label
+    )
+    interaction = make_interaction()
+    await fav_btn.callback(interaction)
+    db.add_favorite.assert_called_once_with("123", "fish", "goldfish")
+    interaction.response.edit_message.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fishview_fav_btn_removes_when_already_faved():
+    from cogs.fish import FishView
+    creature = make_creature(id="goldfish")
+    dc = make_mock_dank_client()
+    db = MagicMock()
+    db.add_favorite = AsyncMock()
+    db.remove_favorite = AsyncMock()
+    view = FishView(creature, dc, db=db, user_id="123", is_faved=True)
+    fav_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "avourite" in item.label
+    )
+    interaction = make_interaction()
+    await fav_btn.callback(interaction)
+    db.remove_favorite.assert_called_once_with("123", "fish", "goldfish")
+
+
+@pytest.mark.asyncio
+async def test_fish_command_writes_history():
+    from cogs.fish import FishCog
+    db = MagicMock()
+    db.get_favorites = AsyncMock(return_value=[])
+    db.add_history = AsyncMock()
+    bot = make_mock_bot()
+    bot.db = db
+    cog = FishCog(bot)
+    interaction = make_interaction()
+    interaction.user.id = "123"
+    await cog.fish.callback(cog, interaction, name="Goldfish")
+    db.add_history.assert_called_once_with("123", "fish", "goldfish")

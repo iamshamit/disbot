@@ -25,10 +25,12 @@ class FishCompareModal(discord.ui.Modal, title="Compare Fish"):
         max_length=60,
     )
 
-    def __init__(self, first_creature, dank_client):
+    def __init__(self, first_creature, dank_client, db=None, user_id=None):
         super().__init__()
         self.first = first_creature
         self.dc = dank_client
+        self.db = db
+        self.user_id = user_id
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         name = self.second_fish.value.strip()
@@ -40,15 +42,18 @@ class FishCompareModal(discord.ui.Modal, title="Compare Fish"):
             )
             return
         await interaction.response.edit_message(
-            embed=build_fish_compare_embed(self.first, second), view=BackToFishView(creature=self.first, dank_client=self.dc)
+            embed=build_fish_compare_embed(self.first, second),
+            view=BackToFishView(creature=self.first, dank_client=self.dc, db=self.db, user_id=self.user_id),
         )
 
 
 class BackToFishView(discord.ui.View):
-    def __init__(self, creature, dank_client):
+    def __init__(self, creature, dank_client, db=None, user_id=None):
         super().__init__(timeout=300)
         self.creature = creature
         self.dc = dank_client
+        self.db = db
+        self.user_id = user_id
 
     async def on_timeout(self) -> None:
         for item in self.children:
@@ -56,19 +61,34 @@ class BackToFishView(discord.ui.View):
 
     @discord.ui.button(label="↩ Back", style=discord.ButtonStyle.secondary)
     async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = FishView(self.creature, self.dc)
+        view = FishView(self.creature, self.dc, db=self.db, user_id=self.user_id)
         await interaction.response.edit_message(
             embed=build_fish_embed(self.creature, self.dc), view=view
         )
 
 
 class FishView(discord.ui.View):
-    def __init__(self, creature, dank_client):
+    def __init__(self, creature, dank_client, db=None, user_id=None, is_faved=False):
         super().__init__(timeout=300)
         self.creature = creature
         self.dc = dank_client
+        self.db = db
+        self.user_id = user_id
+        self._is_faved = is_faved
         if not (creature.extra.get("variants") or []):
             self.variants_btn.disabled = True
+        # Configure fav button
+        fav_btn = next(
+            item for item in self.children
+            if isinstance(item, discord.ui.Button) and "Favour" in item.label
+        )
+        if db is None:
+            fav_btn.disabled = True
+        else:
+            fav_btn.disabled = False
+            if is_faved:
+                fav_btn.label = "💛 Unfavourite"
+                fav_btn.style = discord.ButtonStyle.primary
         self.message: discord.Message | None = None
 
     async def on_timeout(self) -> None:
@@ -82,7 +102,7 @@ class FishView(discord.ui.View):
 
     @discord.ui.button(label="🕐 Peak Hours", style=discord.ButtonStyle.secondary, row=0)
     async def peak_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = BackToFishView(self.creature, self.dc)
+        view = BackToFishView(self.creature, self.dc, db=self.db, user_id=self.user_id)
         await interaction.response.edit_message(embed=build_peak_hours_embed(self.creature), view=view)
 
     @discord.ui.button(label="🔮 Variants", style=discord.ButtonStyle.secondary, row=0)
@@ -120,11 +140,23 @@ class FishView(discord.ui.View):
 
     @discord.ui.button(label="⚔️ Compare", style=discord.ButtonStyle.primary, row=1)
     async def compare_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(FishCompareModal(self.creature, self.dc))
+        await interaction.response.send_modal(
+            FishCompareModal(self.creature, self.dc, db=self.db, user_id=self.user_id)
+        )
 
-    @discord.ui.button(label="🤍 Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
+    @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def fav_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        if self._is_faved:
+            await self.db.remove_favorite(self.user_id, "fish", self.creature.id)
+            self._is_faved = False
+            button.label = "⭐ Favourite"
+            button.style = discord.ButtonStyle.secondary
+        else:
+            await self.db.add_favorite(self.user_id, "fish", self.creature.id)
+            self._is_faved = True
+            button.label = "💛 Unfavourite"
+            button.style = discord.ButtonStyle.primary
+        await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def sim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -229,7 +261,16 @@ class FishCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        view = FishView(creature, self.bot.dank_client)
+        user_id = str(interaction.user.id)
+        is_faved = False
+        if self.bot.db:
+            try:
+                favs = await self.bot.db.get_favorites(user_id, "fish")
+                is_faved = any(f["item_id"] == creature.id for f in favs)
+                await self.bot.db.add_history(user_id, "fish", creature.id)
+            except Exception:
+                pass
+        view = FishView(creature, self.bot.dank_client, db=self.bot.db, user_id=user_id, is_faved=is_faved)
         embed = build_fish_embed(creature, self.bot.dank_client)
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()

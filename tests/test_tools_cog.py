@@ -411,3 +411,47 @@ async def test_setup_adds_cog():
     bot.add_cog.assert_called_once()
     cog_arg = bot.add_cog.call_args.args[0]
     assert isinstance(cog_arg, ToolsCog)
+
+
+# ---------------------------------------------------------------------------
+# ToolView — Favourite button
+# ---------------------------------------------------------------------------
+
+def test_toolview_fav_btn_disabled_when_no_db():
+    from cogs.tools import ToolView
+    tool = make_tool()
+    dc = make_mock_dank_client()
+    view = ToolView(tool, dc)  # no db/user_id — existing call style
+    fav_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "Favour" in item.label
+    )
+    assert fav_btn.disabled is True
+
+
+def test_toolview_fav_btn_enabled_when_db_provided():
+    from cogs.tools import ToolView
+    tool = make_tool()
+    dc = MagicMock()
+    db = MagicMock()
+    view = ToolView(tool, dc, db=db, user_id="123", is_faved=False)
+    fav_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "Favour" in item.label
+    )
+    assert fav_btn.disabled is False
+
+
+@pytest.mark.asyncio
+async def test_tool_command_writes_history():
+    from cogs.tools import ToolsCog
+    db = MagicMock()
+    db.get_favorites = AsyncMock(return_value=[])
+    db.add_history = AsyncMock()
+    bot = make_mock_bot()
+    bot.db = db
+    cog = ToolsCog(bot)
+    interaction = make_interaction()
+    interaction.user.id = "123"
+    await cog.tool.callback(cog, interaction, name="Fishing Rod")
+    db.add_history.assert_called_once_with("123", "tool", "rod")

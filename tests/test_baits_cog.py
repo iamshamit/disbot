@@ -452,3 +452,47 @@ async def test_setup_adds_cog():
     bot.add_cog.assert_called_once()
     cog_arg = bot.add_cog.call_args.args[0]
     assert isinstance(cog_arg, BaitsCog)
+
+
+# ---------------------------------------------------------------------------
+# BaitView — Favourite button
+# ---------------------------------------------------------------------------
+
+def test_baitview_fav_btn_disabled_when_no_db():
+    from cogs.baits import BaitView
+    bait = make_bait()
+    dc = make_mock_dank_client()
+    view = BaitView(bait, dc)  # no db/user_id — existing call style
+    fav_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "Favour" in item.label
+    )
+    assert fav_btn.disabled is True
+
+
+def test_baitview_fav_btn_enabled_when_db_provided():
+    from cogs.baits import BaitView
+    bait = make_bait()
+    dc = MagicMock()
+    db = MagicMock()
+    view = BaitView(bait, dc, db=db, user_id="123", is_faved=False)
+    fav_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "Favour" in item.label
+    )
+    assert fav_btn.disabled is False
+
+
+@pytest.mark.asyncio
+async def test_bait_command_writes_history():
+    from cogs.baits import BaitsCog
+    db = MagicMock()
+    db.get_favorites = AsyncMock(return_value=[])
+    db.add_history = AsyncMock()
+    bot = make_mock_bot()
+    bot.db = db
+    cog = BaitsCog(bot)
+    interaction = make_interaction()
+    interaction.user.id = "123"
+    await cog.bait.callback(cog, interaction, name="Glitter Bait")
+    db.add_history.assert_called_once_with("123", "bait", "glitter")

@@ -36,10 +36,25 @@ class ToolCompareModal(discord.ui.Modal, title="Compare Tool"):
 
 
 class ToolView(discord.ui.View):
-    def __init__(self, tool, dank_client):
+    def __init__(self, tool, dank_client, db=None, user_id=None, is_faved=False):
         super().__init__(timeout=300)
         self.tool = tool
         self.dc = dank_client
+        self.db = db
+        self.user_id = user_id
+        self._is_faved = is_faved
+        # Configure fav button
+        fav_btn = next(
+            item for item in self.children
+            if isinstance(item, discord.ui.Button) and "Favour" in item.label
+        )
+        if db is None:
+            fav_btn.disabled = True
+        else:
+            fav_btn.disabled = False
+            if is_faved:
+                fav_btn.label = "💛 Unfavourite"
+                fav_btn.style = discord.ButtonStyle.primary
         self.message: discord.Message | None = None
 
     async def on_timeout(self) -> None:
@@ -54,6 +69,20 @@ class ToolView(discord.ui.View):
     @discord.ui.button(label="⚔️ Compare", style=discord.ButtonStyle.primary)
     async def compare_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ToolCompareModal(self.tool, self.dc))
+
+    @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True)
+    async def fav_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self._is_faved:
+            await self.db.remove_favorite(self.user_id, "tool", self.tool.id)
+            self._is_faved = False
+            button.label = "⭐ Favourite"
+            button.style = discord.ButtonStyle.secondary
+        else:
+            await self.db.add_favorite(self.user_id, "tool", self.tool.id)
+            self._is_faved = True
+            button.label = "💛 Unfavourite"
+            button.style = discord.ButtonStyle.primary
+        await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, disabled=True)
     async def sim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -85,7 +114,16 @@ class ToolsCog(commands.Cog):
                 embed=EmbedBuilder.error("Not found", _NOT_FOUND.format(name=name)), ephemeral=True
             )
             return
-        view = ToolView(t, self.bot.dank_client)
+        user_id = str(interaction.user.id)
+        is_faved = False
+        if self.bot.db:
+            try:
+                favs = await self.bot.db.get_favorites(user_id, "tool")
+                is_faved = any(f["item_id"] == t.id for f in favs)
+                await self.bot.db.add_history(user_id, "tool", t.id)
+            except Exception:
+                pass
+        view = ToolView(t, self.bot.dank_client, db=self.bot.db, user_id=user_id, is_faved=is_faved)
         embed = build_tool_embed(t)
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()
