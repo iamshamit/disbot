@@ -80,3 +80,60 @@ class Database:
             values,
         )
         await self._conn.commit()
+
+    async def get_or_create_user(self, discord_id: str):
+        await self.create_user(discord_id)
+        return await self.get_user(discord_id)
+
+    async def add_favorite(self, discord_id: str, type: str, item_id: str) -> None:
+        logger.debug("DB add_favorite: %s %s %s", discord_id, type, item_id)
+        await self._conn.execute(
+            "INSERT OR IGNORE INTO favorites (discord_id, type, item_id) VALUES (?, ?, ?)",
+            (discord_id, type, item_id),
+        )
+        await self._conn.commit()
+
+    async def remove_favorite(self, discord_id: str, type: str, item_id: str) -> None:
+        logger.debug("DB remove_favorite: %s %s %s", discord_id, type, item_id)
+        await self._conn.execute(
+            "DELETE FROM favorites WHERE discord_id = ? AND type = ? AND item_id = ?",
+            (discord_id, type, item_id),
+        )
+        await self._conn.commit()
+
+    async def get_favorites(self, discord_id: str, type: str | None = None) -> list:
+        logger.debug("DB get_favorites: %s type=%s", discord_id, type)
+        if type is not None:
+            async with self._conn.execute(
+                "SELECT * FROM favorites WHERE discord_id = ? AND type = ? ORDER BY id",
+                (discord_id, type),
+            ) as cursor:
+                return list(await cursor.fetchall())
+        async with self._conn.execute(
+            "SELECT * FROM favorites WHERE discord_id = ? ORDER BY type, id",
+            (discord_id,),
+        ) as cursor:
+            return list(await cursor.fetchall())
+
+    async def add_history(self, discord_id: str, type: str, item_id: str) -> None:
+        logger.debug("DB add_history: %s %s %s", discord_id, type, item_id)
+        await self._conn.execute(
+            "INSERT INTO history (discord_id, type, item_id) VALUES (?, ?, ?)",
+            (discord_id, type, item_id),
+        )
+        await self._conn.execute(
+            """DELETE FROM history WHERE discord_id = ? AND type = ? AND id NOT IN (
+                SELECT id FROM history WHERE discord_id = ? AND type = ?
+                ORDER BY created_at DESC LIMIT 20
+            )""",
+            (discord_id, type, discord_id, type),
+        )
+        await self._conn.commit()
+
+    async def get_history(self, discord_id: str, type: str, limit: int = 20) -> list:
+        logger.debug("DB get_history: %s type=%s limit=%s", discord_id, type, limit)
+        async with self._conn.execute(
+            "SELECT * FROM history WHERE discord_id = ? AND type = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+            (discord_id, type, limit),
+        ) as cursor:
+            return list(await cursor.fetchall())
