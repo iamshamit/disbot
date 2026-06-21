@@ -6,56 +6,68 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from utils.embeds import EmbedBuilder, build_profile_embed
 
+_UNSET = object()
 
-class EditSetupModal(discord.ui.Modal, title="Edit Fishing Setup"):
+
+def _picker_embed(title: str) -> discord.Embed:
+    return discord.Embed(
+        title=title,
+        description="Make your selections below, then click **✅ Save**.",
+        color=0x5865F2,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Small modals for non-enumerable fields (rod / weather / fav fish)
+# ---------------------------------------------------------------------------
+
+class RodModal(discord.ui.Modal, title="Set Fishing Rod"):
     rod: discord.ui.TextInput = discord.ui.TextInput(
         label="Fishing Rod", placeholder="e.g. Wooden Rod", required=False, max_length=100
     )
-    tool: discord.ui.TextInput = discord.ui.TextInput(
-        label="Current Tool", placeholder="e.g. Fishing Rod", required=False, max_length=100
-    )
-    bait: discord.ui.TextInput = discord.ui.TextInput(
-        label="Current Bait", placeholder="e.g. Glitter Bait", required=False, max_length=100
-    )
 
-    def __init__(self, db, member, message, dank_client):
+    def __init__(self, parent_view):
         super().__init__()
-        self.db = db
-        self.member = member
-        self.message = message
-        self.dc = dank_client
+        self.parent_view = parent_view
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        tool_val = self.tool.value.strip() or None
-        bait_val = self.bait.value.strip() or None
-        if tool_val and not self.dc.get_tool(tool_val):
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Invalid tool", f"No tool named **{tool_val}** found."),
-                ephemeral=True,
-            )
-            return
-        if bait_val and not self.dc.get_bait(bait_val):
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Invalid bait", f"No bait named **{bait_val}** found."),
-                ephemeral=True,
-            )
-            return
-        updates: dict = {}
-        if self.rod.value.strip():
-            updates["fishing_rod"] = self.rod.value.strip()
-        if tool_val is not None:
-            updates["current_tool"] = tool_val
-        if bait_val is not None:
-            updates["current_bait"] = bait_val
-        if updates:
-            await self.db.update_user(str(self.member.id), **updates)
-        user_row = await self.db.get_user(str(self.member.id))
-        await self.message.edit(
-            embed=build_profile_embed(user_row, self.member),
-            view=ProfileView(self.db, self.member, self.dc),
-        )
+        val = self.rod.value.strip()
+        if val:
+            self.parent_view._pending_rod = val
         await interaction.response.defer()
 
+
+class WeatherModal(discord.ui.Modal, title="Set Current Weather"):
+    weather: discord.ui.TextInput = discord.ui.TextInput(
+        label="Current Weather", placeholder="e.g. Rainy", required=False, max_length=100
+    )
+
+    def __init__(self, parent_view):
+        super().__init__()
+        self.parent_view = parent_view
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        self.parent_view._pending_weather = self.weather.value.strip() or None
+        await interaction.response.defer()
+
+
+class FavFishModal(discord.ui.Modal, title="Set Favourite Fish"):
+    fish: discord.ui.TextInput = discord.ui.TextInput(
+        label="Favourite Fish", placeholder="e.g. Goldfish", required=False, max_length=100
+    )
+
+    def __init__(self, parent_view):
+        super().__init__()
+        self.parent_view = parent_view
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        self.parent_view._pending_fav_fish = self.fish.value.strip() or None
+        await interaction.response.defer()
+
+
+# ---------------------------------------------------------------------------
+# EditSkillsModal (integers — text input is the right control)
+# ---------------------------------------------------------------------------
 
 class EditSkillsModal(discord.ui.Modal, title="Edit Skills"):
     fishing_skill: discord.ui.TextInput = discord.ui.TextInput(
@@ -117,114 +129,285 @@ class EditSkillsModal(discord.ui.Modal, title="Edit Skills"):
         await interaction.response.defer()
 
 
-class EditUnlocksModal(discord.ui.Modal, title="Edit Unlocks"):
-    boss_unlock: discord.ui.TextInput = discord.ui.TextInput(
-        label="Boss Unlock (yes/no)", placeholder="yes or no", required=False, max_length=3
-    )
-    mythical_unlock: discord.ui.TextInput = discord.ui.TextInput(
-        label="Mythical Unlock (yes/no)", placeholder="yes or no", required=False, max_length=3
-    )
+# ---------------------------------------------------------------------------
+# Picker views — shown inline (edit_message) instead of modal popups
+# ---------------------------------------------------------------------------
 
-    def __init__(self, db, member, message, dank_client=None):
-        super().__init__()
+class EditSetupView(discord.ui.View):
+    def __init__(self, db, member, dc):
+        super().__init__(timeout=120)
         self.db = db
         self.member = member
-        self.message = message
-        self.dc = dank_client
+        self.dc = dc
+        self._pending_rod: str | None = None
 
-    async def on_submit(self, interaction: discord.Interaction) -> None:
+        tool_opts = [discord.SelectOption(label="— No Tool —", value="__clear__")] + [
+            discord.SelectOption(label=t.name, value=t.id)
+            for t in sorted(dc.tool_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._tool_sel = discord.ui.Select(
+            placeholder="🔧 Select tool…", options=tool_opts, min_values=0, max_values=1, row=0
+        )
+        self._tool_sel.callback = self._defer
+        self.add_item(self._tool_sel)
+
+        bait_opts = [discord.SelectOption(label="— No Bait —", value="__clear__")] + [
+            discord.SelectOption(label=b.name, value=b.id)
+            for b in sorted(dc.bait_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._bait_sel = discord.ui.Select(
+            placeholder="🪱 Select bait…", options=bait_opts, min_values=0, max_values=1, row=1
+        )
+        self._bait_sel.callback = self._defer
+        self.add_item(self._bait_sel)
+
+    async def _defer(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+
+    @discord.ui.button(label="🖊️ Set Rod", style=discord.ButtonStyle.secondary, row=2)
+    async def set_rod_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(RodModal(self))
+
+    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=3)
+    async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         updates: dict = {}
-        for key, raw in [("boss_unlock", self.boss_unlock.value), ("mythical_unlock", self.mythical_unlock.value)]:
-            if not raw.strip():
-                continue
-            lower = raw.strip().lower()
-            if lower not in ("yes", "no"):
-                await interaction.response.send_message(
-                    embed=EmbedBuilder.error("Invalid value", "Boss/Mythical Unlock must be **yes** or **no**."),
-                    ephemeral=True,
-                )
-                return
-            updates[key] = 1 if lower == "yes" else 0
+        if self._pending_rod:
+            updates["fishing_rod"] = self._pending_rod
+        if self._tool_sel.values:
+            v = self._tool_sel.values[0]
+            if v == "__clear__":
+                updates["current_tool"] = None
+            else:
+                t = self.dc.tool_by_id.get(v)
+                if t:
+                    updates["current_tool"] = t.name
+        if self._bait_sel.values:
+            v = self._bait_sel.values[0]
+            if v == "__clear__":
+                updates["current_bait"] = None
+            else:
+                b = self.dc.bait_by_id.get(v)
+                if b:
+                    updates["current_bait"] = b.name
         if updates:
             await self.db.update_user(str(self.member.id), **updates)
         user_row = await self.db.get_user(str(self.member.id))
-        await self.message.edit(
+        await interaction.response.edit_message(
             embed=build_profile_embed(user_row, self.member),
             view=ProfileView(self.db, self.member, self.dc),
         )
-        await interaction.response.defer()
+
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=3)
+    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_row = await self.db.get_user(str(self.member.id))
+        await interaction.response.edit_message(
+            embed=build_profile_embed(user_row, self.member),
+            view=ProfileView(self.db, self.member, self.dc),
+        )
 
 
-class EditEnvModal(discord.ui.Modal, title="Edit Environment"):
-    weather: discord.ui.TextInput = discord.ui.TextInput(
-        label="Current Weather", placeholder="e.g. Rainy", required=False, max_length=100
-    )
-    event: discord.ui.TextInput = discord.ui.TextInput(
-        label="Current Event", placeholder="e.g. Fishing Festival", required=False, max_length=100
-    )
-
-    def __init__(self, db, member, message, dank_client=None):
-        super().__init__()
+class EditUnlocksView(discord.ui.View):
+    def __init__(self, db, member, dc):
+        super().__init__(timeout=120)
         self.db = db
         self.member = member
-        self.message = message
-        self.dc = dank_client
+        self.dc = dc
 
-    async def on_submit(self, interaction: discord.Interaction) -> None:
+        self._boss_sel = discord.ui.Select(
+            placeholder="👑 Boss Unlock…",
+            options=[
+                discord.SelectOption(label="✅ Yes", value="1"),
+                discord.SelectOption(label="❌ No", value="0"),
+            ],
+            min_values=0, max_values=1, row=0,
+        )
+        self._boss_sel.callback = self._defer
+        self.add_item(self._boss_sel)
+
+        self._myth_sel = discord.ui.Select(
+            placeholder="✨ Mythical Unlock…",
+            options=[
+                discord.SelectOption(label="✅ Yes", value="1"),
+                discord.SelectOption(label="❌ No", value="0"),
+            ],
+            min_values=0, max_values=1, row=1,
+        )
+        self._myth_sel.callback = self._defer
+        self.add_item(self._myth_sel)
+
+    async def _defer(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+
+    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=2)
+    async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         updates: dict = {}
-        if self.weather.value.strip():
-            updates["current_weather"] = self.weather.value.strip()
-        if self.event.value.strip():
-            updates["current_event"] = self.event.value.strip()
+        if self._boss_sel.values:
+            updates["boss_unlock"] = int(self._boss_sel.values[0])
+        if self._myth_sel.values:
+            updates["mythical_unlock"] = int(self._myth_sel.values[0])
         if updates:
             await self.db.update_user(str(self.member.id), **updates)
         user_row = await self.db.get_user(str(self.member.id))
-        await self.message.edit(
+        await interaction.response.edit_message(
             embed=build_profile_embed(user_row, self.member),
             view=ProfileView(self.db, self.member, self.dc),
         )
-        await interaction.response.defer()
+
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=2)
+    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_row = await self.db.get_user(str(self.member.id))
+        await interaction.response.edit_message(
+            embed=build_profile_embed(user_row, self.member),
+            view=ProfileView(self.db, self.member, self.dc),
+        )
 
 
-class EditFavsModal(discord.ui.Modal, title="Edit Favourites"):
-    fav_fish: discord.ui.TextInput = discord.ui.TextInput(
-        label="Favourite Fish", placeholder="e.g. Goldfish", required=False, max_length=100
-    )
-    fav_location: discord.ui.TextInput = discord.ui.TextInput(
-        label="Favourite Location", placeholder="e.g. Sunken Ship", required=False, max_length=100
-    )
-    fav_tool: discord.ui.TextInput = discord.ui.TextInput(
-        label="Favourite Tool", placeholder="e.g. Fishing Rod", required=False, max_length=100
-    )
-    fav_bait: discord.ui.TextInput = discord.ui.TextInput(
-        label="Favourite Bait", placeholder="e.g. Glitter Bait", required=False, max_length=100
-    )
-
-    def __init__(self, db, member, message, dank_client=None):
-        super().__init__()
+class EditEnvView(discord.ui.View):
+    def __init__(self, db, member, dc):
+        super().__init__(timeout=120)
         self.db = db
         self.member = member
-        self.message = message
-        self.dc = dank_client
+        self.dc = dc
+        self._pending_weather = _UNSET
 
-    async def on_submit(self, interaction: discord.Interaction) -> None:
+        event_opts = [discord.SelectOption(label="— No Event —", value="__clear__")] + [
+            discord.SelectOption(label=e.name, value=e.id)
+            for e in sorted(dc.event_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._event_sel = discord.ui.Select(
+            placeholder="🎉 Select event…", options=event_opts, min_values=0, max_values=1, row=0
+        )
+        self._event_sel.callback = self._defer
+        self.add_item(self._event_sel)
+
+    async def _defer(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+
+    @discord.ui.button(label="🌤️ Set Weather", style=discord.ButtonStyle.secondary, row=1)
+    async def set_weather_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(WeatherModal(self))
+
+    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=2)
+    async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         updates: dict = {}
-        if self.fav_fish.value.strip():
-            updates["favorite_fish"] = self.fav_fish.value.strip()
-        if self.fav_location.value.strip():
-            updates["favorite_location"] = self.fav_location.value.strip()
-        if self.fav_tool.value.strip():
-            updates["favorite_tool"] = self.fav_tool.value.strip()
-        if self.fav_bait.value.strip():
-            updates["favorite_bait"] = self.fav_bait.value.strip()
+        if self._pending_weather is not _UNSET:
+            updates["current_weather"] = self._pending_weather
+        if self._event_sel.values:
+            v = self._event_sel.values[0]
+            if v == "__clear__":
+                updates["current_event"] = None
+            else:
+                e = self.dc.event_by_id.get(v)
+                if e:
+                    updates["current_event"] = e.name
         if updates:
             await self.db.update_user(str(self.member.id), **updates)
         user_row = await self.db.get_user(str(self.member.id))
-        await self.message.edit(
+        await interaction.response.edit_message(
             embed=build_profile_embed(user_row, self.member),
             view=ProfileView(self.db, self.member, self.dc),
         )
+
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=2)
+    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_row = await self.db.get_user(str(self.member.id))
+        await interaction.response.edit_message(
+            embed=build_profile_embed(user_row, self.member),
+            view=ProfileView(self.db, self.member, self.dc),
+        )
+
+
+class EditFavsView(discord.ui.View):
+    def __init__(self, db, member, dc):
+        super().__init__(timeout=120)
+        self.db = db
+        self.member = member
+        self.dc = dc
+        self._pending_fav_fish = _UNSET
+
+        NONE_OPT = discord.SelectOption(label="— None —", value="__clear__")
+
+        loc_opts = [NONE_OPT] + [
+            discord.SelectOption(label=l.name, value=l.id)
+            for l in sorted(dc.location_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._loc_sel = discord.ui.Select(
+            placeholder="📍 Fav Location…", options=loc_opts, min_values=0, max_values=1, row=0
+        )
+        self._loc_sel.callback = self._defer
+        self.add_item(self._loc_sel)
+
+        tool_opts = [NONE_OPT] + [
+            discord.SelectOption(label=t.name, value=t.id)
+            for t in sorted(dc.tool_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._tool_sel = discord.ui.Select(
+            placeholder="🔧 Fav Tool…", options=tool_opts, min_values=0, max_values=1, row=1
+        )
+        self._tool_sel.callback = self._defer
+        self.add_item(self._tool_sel)
+
+        bait_opts = [NONE_OPT] + [
+            discord.SelectOption(label=b.name, value=b.id)
+            for b in sorted(dc.bait_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._bait_sel = discord.ui.Select(
+            placeholder="🪱 Fav Bait…", options=bait_opts, min_values=0, max_values=1, row=2
+        )
+        self._bait_sel.callback = self._defer
+        self.add_item(self._bait_sel)
+
+    async def _defer(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
+
+    @discord.ui.button(label="🐟 Set Fav Fish", style=discord.ButtonStyle.secondary, row=3)
+    async def set_fav_fish_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(FavFishModal(self))
+
+    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=4)
+    async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        updates: dict = {}
+        if self._pending_fav_fish is not _UNSET:
+            updates["favorite_fish"] = self._pending_fav_fish
+        if self._loc_sel.values:
+            v = self._loc_sel.values[0]
+            if v == "__clear__":
+                updates["favorite_location"] = None
+            else:
+                loc = self.dc.location_by_id.get(v)
+                if loc:
+                    updates["favorite_location"] = loc.name
+        if self._tool_sel.values:
+            v = self._tool_sel.values[0]
+            if v == "__clear__":
+                updates["favorite_tool"] = None
+            else:
+                t = self.dc.tool_by_id.get(v)
+                if t:
+                    updates["favorite_tool"] = t.name
+        if self._bait_sel.values:
+            v = self._bait_sel.values[0]
+            if v == "__clear__":
+                updates["favorite_bait"] = None
+            else:
+                b = self.dc.bait_by_id.get(v)
+                if b:
+                    updates["favorite_bait"] = b.name
+        if updates:
+            await self.db.update_user(str(self.member.id), **updates)
+        user_row = await self.db.get_user(str(self.member.id))
+        await interaction.response.edit_message(
+            embed=build_profile_embed(user_row, self.member),
+            view=ProfileView(self.db, self.member, self.dc),
+        )
+
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=4)
+    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_row = await self.db.get_user(str(self.member.id))
+        await interaction.response.edit_message(
+            embed=build_profile_embed(user_row, self.member),
+            view=ProfileView(self.db, self.member, self.dc),
+        )
 
 
 class ResetConfirmView(discord.ui.View):
@@ -304,8 +487,9 @@ class ProfileView(discord.ui.View):
 
     @discord.ui.button(label="✏️ Edit Setup", style=discord.ButtonStyle.secondary, row=0)
     async def edit_setup_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(
-            EditSetupModal(self.db, self.member, interaction.message, self.dc)
+        await interaction.response.edit_message(
+            embed=_picker_embed("✏️ Edit Setup"),
+            view=EditSetupView(self.db, self.member, self.dc),
         )
 
     @discord.ui.button(label="📊 Edit Skills", style=discord.ButtonStyle.secondary, row=0)
@@ -316,20 +500,23 @@ class ProfileView(discord.ui.View):
 
     @discord.ui.button(label="🔓 Edit Unlocks", style=discord.ButtonStyle.secondary, row=0)
     async def edit_unlocks_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(
-            EditUnlocksModal(self.db, self.member, interaction.message, self.dc)
+        await interaction.response.edit_message(
+            embed=_picker_embed("🔓 Edit Unlocks"),
+            view=EditUnlocksView(self.db, self.member, self.dc),
         )
 
     @discord.ui.button(label="🌤️ Edit Env", style=discord.ButtonStyle.secondary, row=0)
     async def edit_env_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(
-            EditEnvModal(self.db, self.member, interaction.message, self.dc)
+        await interaction.response.edit_message(
+            embed=_picker_embed("🌤️ Edit Environment"),
+            view=EditEnvView(self.db, self.member, self.dc),
         )
 
     @discord.ui.button(label="⭐ Edit Favs", style=discord.ButtonStyle.secondary, row=0)
     async def edit_favs_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(
-            EditFavsModal(self.db, self.member, interaction.message, self.dc)
+        await interaction.response.edit_message(
+            embed=_picker_embed("⭐ Edit Favourites"),
+            view=EditFavsView(self.db, self.member, self.dc),
         )
 
     @discord.ui.button(label="🔄 Reset", style=discord.ButtonStyle.danger, row=1)

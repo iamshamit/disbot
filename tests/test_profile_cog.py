@@ -185,10 +185,12 @@ async def test_profile_view_has_expected_buttons():
     assert import_btn.disabled is True
 
 @pytest.mark.asyncio
-async def test_profile_view_edit_setup_btn_sends_modal():
-    from cogs.profile import ProfileView, EditSetupModal
+async def test_profile_view_edit_setup_btn_shows_picker():
+    from cogs.profile import ProfileView, EditSetupView
     db = MagicMock()
     dc = MagicMock()
+    dc.tool_by_id = {}
+    dc.bait_by_id = {}
     member = make_member()
     view = ProfileView(db, member, dc)
     interaction = make_interaction()
@@ -197,9 +199,9 @@ async def test_profile_view_edit_setup_btn_sends_modal():
         if isinstance(item, discord.ui.Button) and "Setup" in item.label
     )
     await edit_setup_btn.callback(interaction)
-    interaction.response.send_modal.assert_called_once()
-    modal = interaction.response.send_modal.call_args.args[0]
-    assert isinstance(modal, EditSetupModal)
+    interaction.response.edit_message.assert_called_once()
+    kwargs = interaction.response.edit_message.call_args.kwargs
+    assert isinstance(kwargs["view"], EditSetupView)
 
 @pytest.mark.asyncio
 async def test_edit_skills_modal_rejects_negative_skill():
@@ -241,53 +243,48 @@ async def test_edit_skills_modal_saves_valid_values():
     interaction.response.defer.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_edit_unlocks_modal_rejects_invalid_value():
-    from cogs.profile import EditUnlocksModal
+async def test_edit_unlocks_view_has_selects():
+    from cogs.profile import EditUnlocksView
     db = MagicMock()
+    dc = MagicMock()
     member = make_member()
-    message = AsyncMock()
-    modal = EditUnlocksModal(db, member, message)
-    modal.boss_unlock._value = "maybe"
-    modal.mythical_unlock._value = ""
-    interaction = make_interaction()
-    await modal.on_submit(interaction)
-    interaction.response.send_message.assert_called_once()
-    assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
+    view = EditUnlocksView(db, member, dc)
+    selects = [c for c in view.children if isinstance(c, discord.ui.Select)]
+    assert len(selects) == 2
+    placeholders = [s.placeholder for s in selects]
+    assert any("Boss" in p for p in placeholders)
+    assert any("Mythical" in p for p in placeholders)
 
 @pytest.mark.asyncio
-async def test_edit_unlocks_modal_saves_yes_no():
-    from cogs.profile import EditUnlocksModal
+async def test_edit_unlocks_view_save_writes_boss_unlock():
+    from cogs.profile import EditUnlocksView
     db = MagicMock()
     db.update_user = AsyncMock()
     db.get_user = AsyncMock(return_value=make_user_row(boss_unlock=1))
+    dc = MagicMock()
     member = make_member()
-    message = AsyncMock()
-    modal = EditUnlocksModal(db, member, message)
-    modal.boss_unlock._value = "yes"
-    modal.mythical_unlock._value = ""
+    view = EditUnlocksView(db, member, dc)
+    view._boss_sel._values = ["1"]
     interaction = make_interaction()
-    await modal.on_submit(interaction)
+    await view.save_btn.callback(interaction)
     db.update_user.assert_called_once()
     assert db.update_user.call_args.kwargs.get("boss_unlock") == 1
-    interaction.response.defer.assert_called_once()
+    interaction.response.edit_message.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_edit_setup_modal_rejects_invalid_tool():
-    from cogs.profile import EditSetupModal
+async def test_edit_setup_view_has_tool_and_bait_selects():
+    from cogs.profile import EditSetupView
     db = MagicMock()
     dc = MagicMock()
-    dc.get_tool = MagicMock(return_value=None)
+    dc.tool_by_id = {}
+    dc.bait_by_id = {}
     member = make_member()
-    message = AsyncMock()
-    modal = EditSetupModal(db, member, message, dc)
-    modal.rod._value = ""
-    modal.tool._value = "NotARealTool"
-    modal.bait._value = ""
-    interaction = make_interaction()
-    await modal.on_submit(interaction)
-    interaction.response.send_message.assert_called_once()
-    assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
-    db.update_user.assert_not_called()
+    view = EditSetupView(db, member, dc)
+    selects = [c for c in view.children if isinstance(c, discord.ui.Select)]
+    assert len(selects) == 2
+    placeholders = [s.placeholder for s in selects]
+    assert any("tool" in p.lower() for p in placeholders)
+    assert any("bait" in p.lower() for p in placeholders)
 
 @pytest.mark.asyncio
 async def test_reset_confirm_view_has_confirm_and_cancel():

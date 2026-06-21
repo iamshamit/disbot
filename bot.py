@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class DankFishingBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
-        super().__init__(command_prefix=None, intents=intents)
+        super().__init__(command_prefix="!", intents=intents)
         self.dank_client: DankMemerGameClient | None = None
         self.db: Database | None = None
         self.autocomplete: AutocompleteIndex | None = None

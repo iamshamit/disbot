@@ -630,7 +630,7 @@ def build_history_embed(rows: list, member, tab: str) -> discord.Embed:
     lines = []
     for i, row in enumerate(rows, 1):
         item_id = row["item_id"] or "?"
-        ts = _relative_time(row.get("created_at"))
+        ts = _relative_time(row["created_at"])
         lines.append(f"`{i:>2}.` **{item_id}** — {ts}")
     embed.description = "\n".join(lines)
     return embed
