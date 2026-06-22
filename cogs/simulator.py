@@ -9,6 +9,13 @@ from discord.ext import commands
 from utils.embeds import EmbedBuilder, _ROMAN
 
 SKILL_CATEGORIES_ORDER = ["Economy", "Nature", "Science", "Social"]
+
+# Tools that cannot use any bait at all
+_NO_BAIT_TOOLS = {"bare-hand", "dynamite", "magnet-fishing-rope"}
+# Idle Fishing Machine can only use this subset of baits
+_IFM_BAITS = {"time-bait", "weighted-bait", "golden-bait", "lucky-bait",
+               "eyeball-bait", "turkey-bait", "jerky-bait", "omega-bait"}
+
 _SIM_URL = "https://dankmemer.lol/api/bot/fish/simulator"
 _SIM_HEADERS = {
     "Origin": "https://dankmemer.lol",
@@ -271,10 +278,23 @@ class SimulatorView(discord.ui.View):
             self._bait_id = initial_state.get("bait_id")
             self._event_id = initial_state.get("event_id")
             self._hour = initial_state.get("hour", self._hour)
+        # Clear bait if incompatible with the pre-filled tool
+        allowed = self._allowed_baits()
+        if allowed is not None and self._bait_id not in {b.id for b in allowed}:
+            self._bait_id = None
         self._build_selects()
 
+    def _allowed_baits(self) -> list | None:
+        """Returns filtered bait list, or None meaning all baits are allowed."""
+        if self._tool_id in _NO_BAIT_TOOLS:
+            return []
+        if self._tool_id == "idle-fishing-machine":
+            return [b for b in sorted(self.dc.bait_by_id.values(), key=lambda x: x.name)
+                    if b.id in _IFM_BAITS]
+        return None
+
     def _build_selects(self) -> None:
-        # Called once from __init__ only. Removes and re-adds select items; buttons are class-level and untouched.
+        # Removes and re-adds select items; safe to call again when tool changes. Buttons are class-level and untouched.
         for item in list(self.children):
             if isinstance(item, discord.ui.Select):
                 self.remove_item(item)
@@ -292,14 +312,23 @@ class SimulatorView(discord.ui.View):
             for t in sorted(self.dc.tool_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._tool_sel = discord.ui.Select(placeholder="🔧 Tool…", options=tool_opts, min_values=0, max_values=1, row=1)
-        self._tool_sel.callback = self._on_select
+        self._tool_sel.callback = self._on_tool_select
         self.add_item(self._tool_sel)
 
-        bait_opts = [discord.SelectOption(label="— No Bait —", value="__none__", default=self._bait_id is None)] + [
-            discord.SelectOption(label=b.name, value=b.id, default=b.id == self._bait_id)
-            for b in sorted(self.dc.bait_by_id.values(), key=lambda x: x.name)[:24]
-        ]
-        self._bait_sel = discord.ui.Select(placeholder="🪱 Bait…", options=bait_opts, min_values=0, max_values=1, row=2)
+        allowed = self._allowed_baits()
+        if allowed is not None and len(allowed) == 0:
+            bait_opts = [discord.SelectOption(label="— Not available —", value="__none__", default=True)]
+            self._bait_sel = discord.ui.Select(
+                placeholder="🪱 Bait — N/A for this tool", options=bait_opts,
+                min_values=0, max_values=1, row=2, disabled=True,
+            )
+        else:
+            source = allowed if allowed is not None else sorted(self.dc.bait_by_id.values(), key=lambda x: x.name)[:24]
+            bait_opts = [discord.SelectOption(label="— No Bait —", value="__none__", default=self._bait_id is None)] + [
+                discord.SelectOption(label=b.name, value=b.id, default=b.id == self._bait_id)
+                for b in source
+            ]
+            self._bait_sel = discord.ui.Select(placeholder="🪱 Bait…", options=bait_opts, min_values=0, max_values=1, row=2)
         self._bait_sel.callback = self._on_select
         self.add_item(self._bait_sel)
 
@@ -311,13 +340,21 @@ class SimulatorView(discord.ui.View):
         self._event_sel.callback = self._on_select
         self.add_item(self._event_sel)
 
+    async def _on_tool_select(self, interaction: discord.Interaction) -> None:
+        if self._tool_sel.values:
+            v = self._tool_sel.values[0]
+            self._tool_id = None if v == "__none__" else v
+        # Clear bait if now incompatible with the new tool
+        allowed = self._allowed_baits()
+        if allowed is not None and self._bait_id not in {b.id for b in allowed}:
+            self._bait_id = None
+        self._build_selects()
+        await interaction.response.edit_message(view=self)
+
     async def _on_select(self, interaction: discord.Interaction) -> None:
         if self._loc_sel.values:
             v = self._loc_sel.values[0]
             self._loc_id = None if v == "__none__" else v
-        if self._tool_sel.values:
-            v = self._tool_sel.values[0]
-            self._tool_id = None if v == "__none__" else v
         if self._bait_sel.values:
             v = self._bait_sel.values[0]
             self._bait_id = None if v == "__none__" else v
