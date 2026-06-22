@@ -496,23 +496,35 @@ class SimulatorView(discord.ui.View):
     @discord.ui.button(label="📈 Peak Hours", style=discord.ButtonStyle.primary, row=4)
     async def peak_hours_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
-        user_row = await self.db.get_or_create_user(str(self.member.id))
-        bosses = bool(user_row["boss_unlock"])
-        results = []
-        for hour in range(24):
-            data = local_simulate(
-                self.dc,
-                location_id=self._loc_id,
-                tool_id=self._tool_id,
-                bait_id=None,  # fallback baits not modeled in the sweep
-                hour=hour,
-                bosses=bosses,
-                angler_tuesday=self._angler_tuesday,
+        try:
+            user_row = await self.db.get_or_create_user(str(self.member.id))
+            bosses = bool(user_row["boss_unlock"])
+            results = []
+            for hour in range(24):
+                data = local_simulate(
+                    self.dc,
+                    location_id=self._loc_id,
+                    tool_id=self._tool_id,
+                    bait_id=None,
+                    hour=hour,
+                    bosses=bosses,
+                    angler_tuesday=self._angler_tuesday,
+                )
+                results.append((hour, data))
+        except Exception as exc:
+            await interaction.followup.send(
+                embed=EmbedBuilder.error("Simulator error", f"Could not calculate: {exc}"),
+                ephemeral=True,
             )
-            results.append((hour, data))
+            return
         embed = build_peak_hours_embed(results, self._current_state(), self.dc)
+        notes = []
         if self._bait_id in API_FALLBACK_BAITS:
-            embed.set_footer(text="Note: selected bait's per-fish effect is not modeled in the hourly sweep.")
+            notes.append("selected bait's per-fish effect is not modeled in the hourly sweep")
+        if self._loc_winner:
+            notes.append("Location Winner bonus is not modeled in local mode")
+        if notes:
+            embed.set_footer(text="Note: " + "; ".join(notes) + ".")
         self._last_embed = embed
         await interaction.edit_original_response(embed=embed, view=self)
 
