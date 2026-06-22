@@ -49,6 +49,7 @@ class DankMemerGameClient:
         self.skill_categories: Dict[str, list] = {}
         self.location_creature_map: Dict[str, list] = {}
         self.loot_weights: Dict[str, list] = {}
+        self.item_by_id: Dict[int, str] = {}
 
     async def connect(self) -> None:
         if self._client is not None:
@@ -161,6 +162,19 @@ class DankMemerGameClient:
             logger.info("Loaded loot weights for %d locations", len(self.loot_weights))
         except Exception:
             logger.warning("Failed to load data/loot_weights.json; local sim loot will read as 0", exc_info=True)
+
+        try:
+            import aiohttp as _aiohttp
+            _items_url = "https://dankmemer.lol/api/bot/items"
+            _hdrs = {"Origin": "https://dankmemer.lol", "Referer": "https://dankmemer.lol/items"}
+            async with _aiohttp.ClientSession() as _s:
+                async with _s.get(_items_url, headers=_hdrs, timeout=_aiohttp.ClientTimeout(total=15)) as _r:
+                    _r.raise_for_status()
+                    _items = await _r.json()
+            self.item_by_id = {i["id"]: i["name"] for i in _items if isinstance(i.get("id"), int)}
+            logger.info("Loaded %d item names", len(self.item_by_id))
+        except Exception:
+            logger.warning("Failed to load item names; loot will show as 'Misc Loot'", exc_info=True)
 
         logger.info(
             "Preload complete: %d fish, %d locations, %d tools, %d baits, %d npcs, %d events",

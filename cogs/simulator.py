@@ -66,6 +66,12 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
         elif val.get("type") == "fish-bait":
             bid = val.get("baitID", "")
             name = dc.bait_by_id[bid].name if bid in dc.bait_by_id else bid
+        elif val.get("type") == "loot":
+            reward = val.get("reward") or {}
+            item_id = reward.get("item")
+            qty = reward.get("quantity", 1)
+            item_name = (dc.item_by_id or {}).get(item_id) if item_id else None
+            name = f"{qty}× {item_name}" if item_name else "Misc Loot"
         else:
             name = "Misc Loot"
         lines.append(f"`{chance:5.1f}%` (base `{base:.1f}%`) {name}")
@@ -290,6 +296,22 @@ class ExtrasView(discord.ui.View):
     @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=3)
     async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=self.current_embed, view=self.parent)
+
+    @discord.ui.button(label="🪣 Live Loot", style=discord.ButtonStyle.secondary, row=3)
+    async def live_loot_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        try:
+            user_row = await self.parent.db.get_or_create_user(str(self.parent.member.id))
+            data = await call_simulator_api(self.parent._build_payload(user_row))
+        except Exception as exc:
+            await interaction.followup.send(
+                embed=EmbedBuilder.error("API error", f"Could not fetch loot: {exc}"),
+                ephemeral=True,
+            )
+            return
+        embed = build_sim_results_embed(data, self.parent._current_state(), self.parent.dc)
+        self.parent._last_embed = embed
+        await interaction.edit_original_response(embed=embed, view=self.parent)
 
 
 class SimulatorView(discord.ui.View):
