@@ -4,6 +4,7 @@ import json
 import pytest
 import discord
 from unittest.mock import AsyncMock, MagicMock, patch
+import cogs.simulator as sim_mod
 
 
 def make_member(user_id="123", display_name="Tester"):
@@ -234,8 +235,6 @@ async def test_simulator_view_skills_btn_opens_picker():
 
 
 # --- calculate_btn routing ---
-
-import cogs.simulator as sim_mod
 
 
 def _routing_db():
