@@ -698,7 +698,7 @@ class SimulatorCog(commands.Cog):
         }
         view = SimulatorView(db, interaction.user, dc, initial_state=initial_state)
         embed = EmbedBuilder.info("🎣 Simulator", "Select your options and click **🔄 Calculate**.")
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=view)
 
 
     @app_commands.command(name="peakhours", description="Find the best fishing hours for a specific fish")
@@ -732,7 +732,7 @@ class SimulatorCog(commands.Cog):
 
         view = PeakHoursView(db, interaction.user, dc, initial_loc_id=loc_id, initial_tool_id=tool_id)
         embed = EmbedBuilder.info("🎣 Peak Hours", "Select a location, tool, and fish, then click **📈 Show Peak Hours**.")
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=view)
 
 
 async def setup(bot: commands.Bot):
