@@ -84,6 +84,36 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
     return embed
 
 
+def build_peak_hours_embed(results, state, dc) -> discord.Embed:
+    """Render a 24-hour fail%/npc% sweep, flagging the lowest-fail hour.
+
+    results: list[tuple[int hour, dict sim_result]].
+    """
+    loc_id = state.get("location_id")
+    loc_name = dc.location_by_id[loc_id].name if loc_id and loc_id in dc.location_by_id else "No Location"
+
+    best_hour = min(results, key=lambda r: r[1].get("failChance", 100))[0] if results else None
+
+    lines = []
+    for hour, data in results:
+        fail = data.get("failChance", 0)
+        npc = data.get("npcChance", 0)
+        star = " ⭐" if hour == best_hour else ""
+        lines.append(f"`{hour:02d}:00` fail `{fail:>4.1f}%`  npc `{npc:>4.2f}%`{star}")
+
+    embed = discord.Embed(title=f"🕐 Peak Hours — {loc_name}", color=0x5865F2)
+    embed.set_author(name="🎣 Simulator")
+    embed.description = (
+        f"Best hour: **{best_hour:02d}:00 UTC** (lowest fail)\n" if best_hour is not None
+        else "No data.\n"
+    )
+    # Two columns to stay within field limits.
+    half = (len(lines) + 1) // 2
+    embed.add_field(name="Hours 00–11", value="\n".join(lines[:half]) or "—", inline=True)
+    embed.add_field(name="Hours 12–23", value="\n".join(lines[half:]) or "—", inline=True)
+    return embed
+
+
 # SkillsPickerView  (defined here; imported by cogs/profile.py)
 
 class SkillsPickerView(discord.ui.View):
@@ -242,6 +272,10 @@ class ExtrasView(discord.ui.View):
 
     async def _defer(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
+
+    @discord.ui.button(label="🕐 Set Time", style=discord.ButtonStyle.secondary, row=3)
+    async def set_time_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TimeModal(self.parent))
 
     @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=3)
     async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -459,9 +493,28 @@ class SimulatorView(discord.ui.View):
             view=ExtrasView(self, current_embed),
         )
 
-    @discord.ui.button(label="🕐 Set Time", style=discord.ButtonStyle.secondary, row=4)
-    async def set_time_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(TimeModal(self))
+    @discord.ui.button(label="📈 Peak Hours", style=discord.ButtonStyle.primary, row=4)
+    async def peak_hours_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        user_row = await self.db.get_or_create_user(str(self.member.id))
+        bosses = bool(user_row["boss_unlock"])
+        results = []
+        for hour in range(24):
+            data = local_simulate(
+                self.dc,
+                location_id=self._loc_id,
+                tool_id=self._tool_id,
+                bait_id=None,  # fallback baits not modeled in the sweep
+                hour=hour,
+                bosses=bosses,
+                angler_tuesday=self._angler_tuesday,
+            )
+            results.append((hour, data))
+        embed = build_peak_hours_embed(results, self._current_state(), self.dc)
+        if self._bait_id in API_FALLBACK_BAITS:
+            embed.set_footer(text="Note: selected bait's per-fish effect is not modeled in the hourly sweep.")
+        self._last_embed = embed
+        await interaction.edit_original_response(embed=embed, view=self)
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=4)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
