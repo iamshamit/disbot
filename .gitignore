@@ -1,5 +1,6 @@
 .env
-data/
+data/*
+!data/loot_weights.json
 *.db
 __pycache__/
 *.pyc
