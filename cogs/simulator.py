@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.embeds import EmbedBuilder, _ROMAN
-from fishing_engine import local_simulate, API_FALLBACK_BAITS, FallbackBaitError
+from fishing_engine import local_simulate, API_FALLBACK_BAITS, FallbackBaitError, creature_eligible
 
 SKILL_CATEGORIES_ORDER = ["Economy", "Nature", "Science", "Social"]
 
@@ -90,30 +90,43 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
     return embed
 
 
-def build_peak_hours_embed(results, state, dc) -> discord.Embed:
-    """Render a 24-hour fail%/npc% sweep, flagging the lowest-fail hour.
+def build_fish_peak_embed(fish_id: str, results: list, dc) -> discord.Embed:
+    """Render a per-fish 24-hour catch% sweep, flagging the peak hour(s)."""
+    fish_name = dc.fish_by_id[fish_id].name if fish_id in dc.fish_by_id else fish_id
 
-    results: list[tuple[int hour, dict sim_result]].
-    """
-    loc_id = state.get("location_id")
-    loc_name = dc.location_by_id[loc_id].name if loc_id and loc_id in dc.location_by_id else "No Location"
-
-    best_hour = min(results, key=lambda r: r[1].get("failChance", 100))[0] if results else None
-
-    lines = []
+    hourly = []
     for hour, data in results:
-        fail = data.get("failChance", 0)
-        npc = data.get("npcChance", 0)
-        star = " ⭐" if hour == best_hour else ""
-        lines.append(f"`{hour:02d}:00` fail `{fail:>4.1f}%`  npc `{npc:>4.2f}%`{star}")
+        entry = next(
+            (e for e in data.get("table", [])
+             if e.get("value", {}).get("type") == "fish-creature"
+             and e["value"].get("creatureID") == fish_id),
+            None,
+        )
+        hourly.append((hour, entry["chance"] if entry else 0.0))
 
-    embed = discord.Embed(title=f"🕐 Peak Hours — {loc_name}", color=0x5865F2)
-    embed.set_author(name="🎣 Simulator")
+    if not hourly or all(c == 0 for _, c in hourly):
+        embed = discord.Embed(title=f"📈 {fish_name}", color=0x5865F2)
+        embed.set_author(name="🎣 Peak Hours")
+        embed.description = "This fish isn't catchable with the selected setup."
+        return embed
+
+    best_chance = max(c for _, c in hourly)
+    worst_chance = min(c for _, c in hourly)
+    best_hour = next(h for h, c in hourly if c == best_chance)
+    varies = best_chance != worst_chance
+
+    lines = [
+        f"`{h:02d}:00` `{c:5.1f}%`{' ⭐' if c == best_chance else ''}"
+        for h, c in hourly
+    ]
+    embed = discord.Embed(title=f"📈 {fish_name}", color=0x5865F2)
+    embed.set_author(name="🎣 Peak Hours")
     embed.description = (
-        f"Best hour: **{best_hour:02d}:00 UTC** (lowest fail)\n" if best_hour is not None
-        else "No data.\n"
+        f"Peak: **{best_hour:02d}:00 UTC** — **{best_chance:.1f}%**\n"
+        f"Low: **{worst_chance:.1f}%**"
+        if varies else
+        f"Catch chance is constant at **{best_chance:.1f}%** (no time variation)."
     )
-    # Two columns to stay within field limits.
     half = (len(lines) + 1) // 2
     embed.add_field(name="Hours 00–11", value="\n".join(lines[:half]) or "—", inline=True)
     embed.add_field(name="Hours 12–23", value="\n".join(lines[half:]) or "—", inline=True)
@@ -516,8 +529,96 @@ class SimulatorView(discord.ui.View):
             view=ExtrasView(self, current_embed),
         )
 
-    @discord.ui.button(label="📈 Peak Hours", style=discord.ButtonStyle.primary, row=4)
-    async def peak_hours_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=4)
+    async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+
+class PeakHoursView(discord.ui.View):
+    def __init__(self, db, member, dc, initial_loc_id=None, initial_tool_id=None):
+        super().__init__(timeout=300)
+        self.db = db
+        self.member = member
+        self.dc = dc
+        self._loc_id = initial_loc_id
+        self._tool_id = initial_tool_id
+        self._fish_id: str | None = None
+        self._build_selects()
+
+    def _eligible_fish(self) -> list:
+        if not self._loc_id or not self._tool_id:
+            return []
+        return sorted(
+            [c for c in self.dc.fish_by_id.values()
+             if creature_eligible(c, self._loc_id, self._tool_id, 0,
+                                  bosses=False, ignore_time=True)],
+            key=lambda c: c.name,
+        )
+
+    def _build_selects(self) -> None:
+        for item in list(self.children):
+            if isinstance(item, discord.ui.Select):
+                self.remove_item(item)
+
+        loc_opts = [discord.SelectOption(label="— No Location —", value="__none__", default=self._loc_id is None)] + [
+            discord.SelectOption(label=l.name, value=l.id, default=l.id == self._loc_id)
+            for l in sorted(self.dc.location_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._loc_sel = discord.ui.Select(placeholder="📍 Location…", options=loc_opts, min_values=0, max_values=1, row=0)
+        self._loc_sel.callback = self._on_loc_tool_select
+        self.add_item(self._loc_sel)
+
+        tool_opts = [discord.SelectOption(label="— No Tool —", value="__none__", default=self._tool_id is None)] + [
+            discord.SelectOption(label=t.name, value=t.id, default=t.id == self._tool_id)
+            for t in sorted(self.dc.tool_by_id.values(), key=lambda x: x.name)[:24]
+        ]
+        self._tool_sel = discord.ui.Select(placeholder="🔧 Tool…", options=tool_opts, min_values=0, max_values=1, row=1)
+        self._tool_sel.callback = self._on_loc_tool_select
+        self.add_item(self._tool_sel)
+
+        fish = self._eligible_fish()
+        if fish:
+            fish_opts = [discord.SelectOption(label="— Select a fish —", value="__none__", default=self._fish_id is None)] + [
+                discord.SelectOption(label=f.name, value=f.id, default=f.id == self._fish_id)
+                for f in fish[:24]
+            ]
+            self._fish_sel = discord.ui.Select(placeholder="🐟 Fish…", options=fish_opts, min_values=0, max_values=1, row=2)
+        else:
+            self._fish_sel = discord.ui.Select(
+                placeholder="🐟 Pick location + tool first",
+                options=[discord.SelectOption(label="—", value="__none__")],
+                min_values=0, max_values=1, row=2, disabled=True,
+            )
+        self._fish_sel.callback = self._on_fish_select
+        self.add_item(self._fish_sel)
+
+    async def _on_loc_tool_select(self, interaction: discord.Interaction) -> None:
+        if self._loc_sel.values:
+            v = self._loc_sel.values[0]
+            self._loc_id = None if v == "__none__" else v
+        if self._tool_sel.values:
+            v = self._tool_sel.values[0]
+            self._tool_id = None if v == "__none__" else v
+        if self._fish_id not in {f.id for f in self._eligible_fish()}:
+            self._fish_id = None
+        self._build_selects()
+        await interaction.response.edit_message(view=self)
+
+    async def _on_fish_select(self, interaction: discord.Interaction) -> None:
+        if self._fish_sel.values:
+            v = self._fish_sel.values[0]
+            self._fish_id = None if v == "__none__" else v
+        self._build_selects()
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="📈 Show Peak Hours", style=discord.ButtonStyle.primary, row=3)
+    async def show_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self._loc_id or not self._tool_id or not self._fish_id:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Incomplete", "Select a location, tool, and fish first."),
+                ephemeral=True,
+            )
+            return
         await interaction.response.defer()
         try:
             user_row = await self.db.get_or_create_user(str(self.member.id))
@@ -525,33 +626,20 @@ class SimulatorView(discord.ui.View):
             results = []
             for hour in range(24):
                 data = local_simulate(
-                    self.dc,
-                    location_id=self._loc_id,
-                    tool_id=self._tool_id,
-                    bait_id=None,
-                    hour=hour,
-                    bosses=bosses,
-                    angler_tuesday=self._angler_tuesday,
+                    self.dc, location_id=self._loc_id, tool_id=self._tool_id,
+                    bait_id=None, hour=hour, bosses=bosses,
                 )
                 results.append((hour, data))
         except Exception as exc:
             await interaction.followup.send(
-                embed=EmbedBuilder.error("Simulator error", f"Could not calculate: {exc}"),
+                embed=EmbedBuilder.error("Error", f"Could not calculate: {exc}"),
                 ephemeral=True,
             )
             return
-        embed = build_peak_hours_embed(results, self._current_state(), self.dc)
-        notes = []
-        if self._bait_id in API_FALLBACK_BAITS:
-            notes.append("selected bait's per-fish effect is not modeled in the hourly sweep")
-        if self._loc_winner:
-            notes.append("Location Winner bonus is not modeled in local mode")
-        if notes:
-            embed.set_footer(text="Note: " + "; ".join(notes) + ".")
-        self._last_embed = embed
+        embed = build_fish_peak_embed(self._fish_id, results, self.dc)
         await interaction.edit_original_response(embed=embed, view=self)
 
-    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=4)
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=3)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.message.delete()
 
@@ -610,6 +698,40 @@ class SimulatorCog(commands.Cog):
         }
         view = SimulatorView(db, interaction.user, dc, initial_state=initial_state)
         embed = EmbedBuilder.info("🎣 Simulator", "Select your options and click **🔄 Calculate**.")
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+    @app_commands.command(name="peakhours", description="Find the best fishing hours for a specific fish")
+    async def peakhours(self, interaction: discord.Interaction):
+        dc = self.bot.dank_client
+        db = self.bot.db
+        if not dc or not dc.fish_by_id:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not ready", "Game data still loading."), ephemeral=True
+            )
+            return
+        if not db:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not available", "Database unavailable."), ephemeral=True
+            )
+            return
+
+        user_row = await db.get_or_create_user(str(interaction.user.id))
+
+        loc_id = None
+        if user_row["favorite_location"]:
+            loc = dc.location_by_name.get(user_row["favorite_location"].lower())
+            if loc:
+                loc_id = loc.id
+
+        tool_id = None
+        if user_row["current_tool"]:
+            tool = dc.tool_by_name.get(user_row["current_tool"].lower())
+            if tool:
+                tool_id = tool.id
+
+        view = PeakHoursView(db, interaction.user, dc, initial_loc_id=loc_id, initial_tool_id=tool_id)
+        embed = EmbedBuilder.info("🎣 Peak Hours", "Select a location, tool, and fish, then click **📈 Show Peak Hours**.")
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
