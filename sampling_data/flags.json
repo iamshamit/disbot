@@ -1,0 +1,1402 @@
+[
+  {
+    "flags": "baseline",
+    "payload": {
+      "locationID": "lake",
+      "toolID": "fishing-rod",
+      "baitsIDs": [],
+      "time": 1782129600000,
+      "events": [],
+      "bosses": false,
+      "skills": {},
+      "bonusBossMultiplier": 1,
+      "bonusMythicalMultiplier": 1,
+      "forceTrash": false,
+      "mythicalFishID": null,
+      "discoveredCreatures": null,
+      "anglerTuesday": false,
+      "invasion": null,
+      "locationWinner": false
+    },
+    "result": {
+      "table": [
+        {
+          "chance": 0.11737089201877934,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 241,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.11737
+        },
+        {
+          "chance": 0.11737089201877934,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 274,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.23474
+        },
+        {
+          "chance": 1.1737089201877933,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "koi"
+          },
+          "baseChance": 1.40845
+        },
+        {
+          "chance": 1.1737089201877933,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "red-arowana"
+          },
+          "baseChance": 2.58216
+        },
+        {
+          "chance": 1.7605633802816902,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 245,
+              "quantity": 1
+            }
+          },
+          "baseChance": 4.34272
+        },
+        {
+          "chance": 4.694835680751173,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 22,
+              "quantity": 1
+            }
+          },
+          "baseChance": 9.03756
+        },
+        {
+          "chance": 7.629107981220658,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "snapping-turtle"
+          },
+          "baseChance": 16.66667
+        },
+        {
+          "chance": 11.737089201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "crappie"
+          },
+          "baseChance": 28.40376
+        },
+        {
+          "chance": 11.737089201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bullfrog"
+          },
+          "baseChance": 40.14085
+        },
+        {
+          "chance": 11.737089201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "white-perch"
+          },
+          "baseChance": 51.87793
+        },
+        {
+          "chance": 11.737089201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "yellow-perch"
+          },
+          "baseChance": 63.61502
+        },
+        {
+          "chance": 17.018779342723008,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bass"
+          },
+          "baseChance": 80.6338
+        },
+        {
+          "chance": 19.366197183098592,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bluegill"
+          },
+          "baseChance": 100
+        }
+      ],
+      "variants": {
+        "koi": [
+          {
+            "name": "High Quality Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407339566080051.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Black Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415912194617425.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Yellow Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415911280246904.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Blue Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415843282194452.png",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "red-arowana": [
+          {
+            "name": "High Quality Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407348969701436.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415981123817553.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "snapping-turtle": [
+          {
+            "name": "High Quality Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260912488656926.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Baby Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1410801854249435266.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "crappie": [
+          {
+            "name": "High Quality Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407391676125214.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1151509273583562752.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "bullfrog": [
+          {
+            "name": "High Quality Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260910693482516.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1262537551902802002.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "white-perch": [
+          {
+            "name": "High Quality White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274744998667227157.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Zombie White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1418807155523457074.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "yellow-perch": [
+          {
+            "name": "High Quality Yellow Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274745000101417051.gif",
+            "type": "high quality",
+            "chance": 0
+          }
+        ],
+        "bass": [
+          {
+            "name": "High Quality Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407334495174676.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415748826476596.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "bluegill": [
+          {
+            "name": "High Quality Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407382406693027.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415750122508308.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ]
+      },
+      "failChance": 10,
+      "npcChance": 0.575
+    }
+  },
+  {
+    "flags": "bosses=True",
+    "payload": {
+      "locationID": "lake",
+      "toolID": "fishing-rod",
+      "baitsIDs": [],
+      "time": 1782129600000,
+      "events": [],
+      "bosses": true,
+      "skills": {},
+      "bonusBossMultiplier": 1,
+      "bonusMythicalMultiplier": 1,
+      "forceTrash": false,
+      "mythicalFishID": null,
+      "discoveredCreatures": null,
+      "anglerTuesday": false,
+      "invasion": null,
+      "locationWinner": false
+    },
+    "result": {
+      "table": [
+        {
+          "chance": 0.11737089201877934,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 241,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.11737
+        },
+        {
+          "chance": 0.11737089201877934,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 274,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.23474
+        },
+        {
+          "chance": 1.1737089201877933,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "koi"
+          },
+          "baseChance": 1.40845
+        },
+        {
+          "chance": 1.1737089201877933,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "red-arowana"
+          },
+          "baseChance": 2.58216
+        },
+        {
+          "chance": 1.7605633802816902,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 245,
+              "quantity": 1
+            }
+          },
+          "baseChance": 4.34272
+        },
+        {
+          "chance": 4.694835680751173,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 22,
+              "quantity": 1
+            }
+          },
+          "baseChance": 9.03756
+        },
+        {
+          "chance": 7.629107981220658,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "snapping-turtle"
+          },
+          "baseChance": 16.66667
+        },
+        {
+          "chance": 11.737089201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "crappie"
+          },
+          "baseChance": 28.40376
+        },
+        {
+          "chance": 11.737089201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bullfrog"
+          },
+          "baseChance": 40.14085
+        },
+        {
+          "chance": 11.737089201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "white-perch"
+          },
+          "baseChance": 51.87793
+        },
+        {
+          "chance": 11.737089201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "yellow-perch"
+          },
+          "baseChance": 63.61502
+        },
+        {
+          "chance": 17.018779342723008,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bass"
+          },
+          "baseChance": 80.6338
+        },
+        {
+          "chance": 19.366197183098592,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bluegill"
+          },
+          "baseChance": 100
+        }
+      ],
+      "variants": {
+        "koi": [
+          {
+            "name": "High Quality Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407339566080051.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Black Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415912194617425.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Yellow Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415911280246904.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Blue Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415843282194452.png",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "red-arowana": [
+          {
+            "name": "High Quality Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407348969701436.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415981123817553.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "snapping-turtle": [
+          {
+            "name": "High Quality Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260912488656926.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Baby Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1410801854249435266.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "crappie": [
+          {
+            "name": "High Quality Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407391676125214.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1151509273583562752.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "bullfrog": [
+          {
+            "name": "High Quality Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260910693482516.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1262537551902802002.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "white-perch": [
+          {
+            "name": "High Quality White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274744998667227157.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Zombie White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1418807155523457074.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "yellow-perch": [
+          {
+            "name": "High Quality Yellow Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274745000101417051.gif",
+            "type": "high quality",
+            "chance": 0
+          }
+        ],
+        "bass": [
+          {
+            "name": "High Quality Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407334495174676.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415748826476596.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "bluegill": [
+          {
+            "name": "High Quality Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407382406693027.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415750122508308.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ]
+      },
+      "failChance": 10,
+      "npcChance": 0.575
+    }
+  },
+  {
+    "flags": "anglerTuesday",
+    "payload": {
+      "locationID": "lake",
+      "toolID": "fishing-rod",
+      "baitsIDs": [],
+      "time": 1782129600000,
+      "events": [],
+      "bosses": false,
+      "skills": {},
+      "bonusBossMultiplier": 1,
+      "bonusMythicalMultiplier": 1,
+      "forceTrash": false,
+      "mythicalFishID": null,
+      "discoveredCreatures": null,
+      "anglerTuesday": true,
+      "invasion": null,
+      "locationWinner": false
+    },
+    "result": {
+      "table": [
+        {
+          "chance": 0.12874657122677935,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 241,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.12875
+        },
+        {
+          "chance": 0.14480932579577932,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 274,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.27356
+        },
+        {
+          "chance": 1.1896808726277932,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "red-arowana"
+          },
+          "baseChance": 1.46324
+        },
+        {
+          "chance": 1.1959679593877932,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "koi"
+          },
+          "baseChance": 2.6592
+        },
+        {
+          "chance": 1.7912459362816902,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 245,
+              "quantity": 1
+            }
+          },
+          "baseChance": 4.45045
+        },
+        {
+          "chance": 4.736435760751173,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 22,
+              "quantity": 1
+            }
+          },
+          "baseChance": 9.18689
+        },
+        {
+          "chance": 7.684072381220658,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "snapping-turtle"
+          },
+          "baseChance": 16.87096
+        },
+        {
+          "chance": 11.781089201877935,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "crappie"
+          },
+          "baseChance": 28.65205
+        },
+        {
+          "chance": 11.806681201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "yellow-perch"
+          },
+          "baseChance": 40.45873
+        },
+        {
+          "chance": 11.817889201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bullfrog"
+          },
+          "baseChance": 52.27662
+        },
+        {
+          "chance": 11.818649201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "white-perch"
+          },
+          "baseChance": 64.09527
+        },
+        {
+          "chance": 16.93877934272301,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bass"
+          },
+          "baseChance": 81.03405
+        },
+        {
+          "chance": 18.965953042473593,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bluegill"
+          },
+          "baseChance": 100
+        }
+      ],
+      "variants": {
+        "red-arowana": [
+          {
+            "name": "High Quality Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407348969701436.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415981123817553.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "koi": [
+          {
+            "name": "High Quality Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407339566080051.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Black Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415912194617425.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Yellow Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415911280246904.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Blue Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415843282194452.png",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "snapping-turtle": [
+          {
+            "name": "High Quality Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260912488656926.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Baby Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1410801854249435266.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "crappie": [
+          {
+            "name": "High Quality Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407391676125214.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1151509273583562752.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "yellow-perch": [
+          {
+            "name": "High Quality Yellow Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274745000101417051.gif",
+            "type": "high quality",
+            "chance": 0
+          }
+        ],
+        "bullfrog": [
+          {
+            "name": "High Quality Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260910693482516.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1262537551902802002.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "white-perch": [
+          {
+            "name": "High Quality White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274744998667227157.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Zombie White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1418807155523457074.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "bass": [
+          {
+            "name": "High Quality Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407334495174676.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415748826476596.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "bluegill": [
+          {
+            "name": "High Quality Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407382406693027.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415750122508308.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ]
+      },
+      "failChance": 0,
+      "npcChance": 0.575
+    }
+  },
+  {
+    "flags": "locationWinner",
+    "payload": {
+      "locationID": "lake",
+      "toolID": "fishing-rod",
+      "baitsIDs": [],
+      "time": 1782129600000,
+      "events": [],
+      "bosses": false,
+      "skills": {},
+      "bonusBossMultiplier": 1,
+      "bonusMythicalMultiplier": 1,
+      "forceTrash": false,
+      "mythicalFishID": null,
+      "discoveredCreatures": null,
+      "anglerTuesday": false,
+      "invasion": null,
+      "locationWinner": true
+    },
+    "result": {
+      "table": [
+        {
+          "chance": 0.1742492880587793,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 241,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.17425
+        },
+        {
+          "chance": 0.2545630609037792,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 274,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.42881
+        },
+        {
+          "chance": 1.2535686823877932,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "red-arowana"
+          },
+          "baseChance": 1.68238
+        },
+        {
+          "chance": 1.2850041161877932,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "koi"
+          },
+          "baseChance": 2.96739
+        },
+        {
+          "chance": 1.91397616028169,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 245,
+              "quantity": 1
+            }
+          },
+          "baseChance": 4.88136
+        },
+        {
+          "chance": 4.902836080751173,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 22,
+              "quantity": 1
+            }
+          },
+          "baseChance": 9.7842
+        },
+        {
+          "chance": 7.903929981220657,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "snapping-turtle"
+          },
+          "baseChance": 17.68813
+        },
+        {
+          "chance": 11.957089201877935,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "crappie"
+          },
+          "baseChance": 29.64522
+        },
+        {
+          "chance": 12.085049201877935,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "yellow-perch"
+          },
+          "baseChance": 41.73027
+        },
+        {
+          "chance": 12.141089201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bullfrog"
+          },
+          "baseChance": 53.87135
+        },
+        {
+          "chance": 12.144889201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "white-perch"
+          },
+          "baseChance": 66.01624
+        },
+        {
+          "chance": 16.61877934272301,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bass"
+          },
+          "baseChance": 82.63502
+        },
+        {
+          "chance": 17.364976479973592,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bluegill"
+          },
+          "baseChance": 100
+        }
+      ],
+      "variants": {
+        "red-arowana": [
+          {
+            "name": "High Quality Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407348969701436.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415981123817553.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "koi": [
+          {
+            "name": "High Quality Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407339566080051.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Black Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415912194617425.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Yellow Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415911280246904.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Blue Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415843282194452.png",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "snapping-turtle": [
+          {
+            "name": "High Quality Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260912488656926.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Baby Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1410801854249435266.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "crappie": [
+          {
+            "name": "High Quality Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407391676125214.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1151509273583562752.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "yellow-perch": [
+          {
+            "name": "High Quality Yellow Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274745000101417051.gif",
+            "type": "high quality",
+            "chance": 0
+          }
+        ],
+        "bullfrog": [
+          {
+            "name": "High Quality Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260910693482516.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1262537551902802002.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "white-perch": [
+          {
+            "name": "High Quality White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274744998667227157.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Zombie White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1418807155523457074.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "bass": [
+          {
+            "name": "High Quality Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407334495174676.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415748826476596.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "bluegill": [
+          {
+            "name": "High Quality Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407382406693027.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415750122508308.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ]
+      },
+      "failChance": 10,
+      "npcChance": 0.575
+    }
+  },
+  {
+    "flags": "all flags",
+    "payload": {
+      "locationID": "lake",
+      "toolID": "fishing-rod",
+      "baitsIDs": [],
+      "time": 1782129600000,
+      "events": [],
+      "bosses": true,
+      "skills": {},
+      "bonusBossMultiplier": 1,
+      "bonusMythicalMultiplier": 1,
+      "forceTrash": false,
+      "mythicalFishID": null,
+      "discoveredCreatures": null,
+      "anglerTuesday": true,
+      "invasion": null,
+      "locationWinner": true
+    },
+    "result": {
+      "table": [
+        {
+          "chance": 0.1856249672667793,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 241,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.18562
+        },
+        {
+          "chance": 0.2820014946807792,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 274,
+              "quantity": 1
+            }
+          },
+          "baseChance": 0.46763
+        },
+        {
+          "chance": 1.2695406348277931,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "red-arowana"
+          },
+          "baseChance": 1.73717
+        },
+        {
+          "chance": 1.3072631553877931,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "koi"
+          },
+          "baseChance": 3.04443
+        },
+        {
+          "chance": 1.9446587162816902,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 245,
+              "quantity": 1
+            }
+          },
+          "baseChance": 4.98909
+        },
+        {
+          "chance": 4.944436160751173,
+          "value": {
+            "type": "loot",
+            "reward": {
+              "type": "item",
+              "item": 22,
+              "quantity": 1
+            }
+          },
+          "baseChance": 9.93353
+        },
+        {
+          "chance": 7.958894381220658,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "snapping-turtle"
+          },
+          "baseChance": 17.89242
+        },
+        {
+          "chance": 12.001089201877933,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "crappie"
+          },
+          "baseChance": 29.89351
+        },
+        {
+          "chance": 12.154641201877935,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "yellow-perch"
+          },
+          "baseChance": 42.04815
+        },
+        {
+          "chance": 12.221889201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bullfrog"
+          },
+          "baseChance": 54.27004
+        },
+        {
+          "chance": 12.226449201877934,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "white-perch"
+          },
+          "baseChance": 66.49649
+        },
+        {
+          "chance": 16.538779342723007,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bass"
+          },
+          "baseChance": 83.03527
+        },
+        {
+          "chance": 16.964732339348593,
+          "value": {
+            "type": "fish-creature",
+            "creatureID": "bluegill"
+          },
+          "baseChance": 100
+        }
+      ],
+      "variants": {
+        "red-arowana": [
+          {
+            "name": "High Quality Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407348969701436.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Red Arowana",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415981123817553.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "koi": [
+          {
+            "name": "High Quality Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407339566080051.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Black Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415912194617425.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Yellow Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415911280246904.png",
+            "type": "unique",
+            "chance": 0.5
+          },
+          {
+            "name": "Unique Blue Koi",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415843282194452.png",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "snapping-turtle": [
+          {
+            "name": "High Quality Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260912488656926.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Baby Snapping Turtle",
+            "imageURL": "https://cdn.discordapp.com/emojis/1410801854249435266.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "crappie": [
+          {
+            "name": "High Quality Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407391676125214.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Crappie",
+            "imageURL": "https://cdn.discordapp.com/emojis/1151509273583562752.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "yellow-perch": [
+          {
+            "name": "High Quality Yellow Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274745000101417051.gif",
+            "type": "high quality",
+            "chance": 0
+          }
+        ],
+        "bullfrog": [
+          {
+            "name": "High Quality Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1184260910693482516.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bullfrog",
+            "imageURL": "https://cdn.discordapp.com/emojis/1262537551902802002.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "white-perch": [
+          {
+            "name": "High Quality White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1274744998667227157.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Unique Zombie White Perch",
+            "imageURL": "https://cdn.discordapp.com/emojis/1418807155523457074.gif",
+            "type": "unique",
+            "chance": 0.5
+          }
+        ],
+        "bass": [
+          {
+            "name": "High Quality Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407334495174676.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bass",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415748826476596.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ],
+        "bluegill": [
+          {
+            "name": "High Quality Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1157407382406693027.gif",
+            "type": "high quality",
+            "chance": 0
+          },
+          {
+            "name": "Chroma Bluegill",
+            "imageURL": "https://cdn.discordapp.com/emojis/1148415750122508308.png",
+            "type": "chroma",
+            "chance": 0.7
+          }
+        ]
+      },
+      "failChance": 0,
+      "npcChance": 0.575
+    }
+  }
+]
