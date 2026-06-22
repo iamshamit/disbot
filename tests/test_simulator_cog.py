@@ -231,3 +231,63 @@ async def test_simulator_view_skills_btn_opens_picker():
     interaction.response.edit_message.assert_called_once()
     call_kwargs = interaction.response.edit_message.call_args.kwargs
     assert isinstance(call_kwargs.get("view"), SkillsPickerView)
+
+
+# --- calculate_btn routing ---
+
+import cogs.simulator as sim_mod
+
+
+def _routing_db():
+    db = MagicMock()
+    db.get_or_create_user = AsyncMock(return_value=make_user_row(boss_unlock=0))
+    db.add_history = AsyncMock()
+    return db
+
+
+@pytest.mark.asyncio
+async def test_calculate_uses_engine_for_local_bait(monkeypatch):
+    from cogs.simulator import SimulatorView
+    dc = make_dc()
+    view = SimulatorView(_routing_db(), make_member(), dc,
+                         initial_state={"location_id": "river", "tool_id": "rod",
+                                        "bait_id": None, "event_id": None, "hour": 12})
+    called = {"engine": False, "api": False}
+
+    def fake_engine(*a, **k):
+        called["engine"] = True
+        return {"failChance": 10, "npcChance": 0.5, "table": [], "variants": {}}
+
+    async def fake_api(payload):
+        called["api"] = True
+        return {"failChance": 0, "npcChance": 0, "table": [], "variants": {}}
+
+    monkeypatch.setattr(sim_mod, "local_simulate", fake_engine)
+    monkeypatch.setattr(sim_mod, "call_simulator_api", fake_api)
+    await view.calculate_btn.callback(make_interaction())
+    assert called["engine"] is True
+    assert called["api"] is False
+
+
+@pytest.mark.asyncio
+async def test_calculate_uses_api_for_fallback_bait(monkeypatch):
+    from cogs.simulator import SimulatorView
+    dc = make_dc()
+    view = SimulatorView(_routing_db(), make_member(), dc,
+                         initial_state={"location_id": "river", "tool_id": "rod",
+                                        "bait_id": "lucky-bait", "event_id": None, "hour": 12})
+    called = {"engine": False, "api": False}
+
+    def fake_engine(*a, **k):
+        called["engine"] = True
+        return {"failChance": 10, "npcChance": 0.5, "table": [], "variants": {}}
+
+    async def fake_api(payload):
+        called["api"] = True
+        return {"failChance": 0, "npcChance": 0, "table": [], "variants": {}}
+
+    monkeypatch.setattr(sim_mod, "local_simulate", fake_engine)
+    monkeypatch.setattr(sim_mod, "call_simulator_api", fake_api)
+    await view.calculate_btn.callback(make_interaction())
+    assert called["api"] is True
+    assert called["engine"] is False

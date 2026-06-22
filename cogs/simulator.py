@@ -7,6 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.embeds import EmbedBuilder, _ROMAN
+from fishing_engine import local_simulate, API_FALLBACK_BAITS, FallbackBaitError
 
 SKILL_CATEGORIES_ORDER = ["Economy", "Nature", "Science", "Social"]
 
@@ -401,12 +402,25 @@ class SimulatorView(discord.ui.View):
     async def calculate_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         user_row = await self.db.get_or_create_user(str(self.member.id))
-        payload = self._build_payload(user_row)
+        use_api = self._bait_id in API_FALLBACK_BAITS
         try:
-            data = await call_simulator_api(payload)
+            if use_api:
+                data = await call_simulator_api(self._build_payload(user_row))
+            else:
+                data = local_simulate(
+                    self.dc,
+                    location_id=self._loc_id,
+                    tool_id=self._tool_id,
+                    bait_id=self._bait_id,
+                    hour=self._hour,
+                    bosses=bool(user_row["boss_unlock"]),
+                    angler_tuesday=self._angler_tuesday,
+                )
+        except FallbackBaitError:
+            data = await call_simulator_api(self._build_payload(user_row))
         except Exception as exc:
             await interaction.followup.send(
-                embed=EmbedBuilder.error("API Error", f"Simulator request failed: {exc}"),
+                embed=EmbedBuilder.error("Simulator error", f"Could not calculate: {exc}"),
                 ephemeral=True,
             )
             return
