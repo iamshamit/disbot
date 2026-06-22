@@ -31,7 +31,7 @@ API_FALLBACK_BAITS = frozenset({
 
 # Baits that change the catch distribution by a derivable transform.
 _VINTAGE = "vintage-bait"
-_TIMELY = "timely-bait"
+_TIMELY = "time-bait"
 _MAGNET = "magnet-bait"
 _HEART = "heart-bait"
 

@@ -117,6 +117,17 @@ def test_local_simulate_npc_chance_by_tool():
     assert abs(net["npcChance"] - 0.50) < 1e-6
 
 
+def test_local_simulate_time_bait_ignores_time_filter():
+    # bluegill: normal window start=2..end=15 — inactive at hour 16 without time-bait
+    dc = _fake_dc()
+    without = local_simulate(dc, location_id="lake", tool_id="fishing-rod", bait_id=None, hour=16)
+    with_time = local_simulate(dc, location_id="lake", tool_id="fishing-rod", bait_id="time-bait", hour=16)
+    without_ids = {e["value"]["creatureID"] for e in without["table"] if e["value"].get("type") == "fish-creature"}
+    with_ids = {e["value"]["creatureID"] for e in with_time["table"] if e["value"].get("type") == "fish-creature"}
+    assert "bluegill" not in without_ids, "bluegill should be time-gated at hour 16"
+    assert "bluegill" in with_ids, "time-bait should override time filter"
+
+
 def test_local_simulate_fallback_bait_raises():
     dc = _fake_dc()
     try:
