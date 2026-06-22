@@ -4,6 +4,7 @@ import json
 import pytest
 import discord
 from unittest.mock import AsyncMock, MagicMock, patch
+import cogs.simulator as sim_mod
 
 
 def make_member(user_id="123", display_name="Tester"):
@@ -77,7 +78,7 @@ async def test_simulator_view_has_4_selects_and_5_buttons():
     assert "🔄 Calculate" in btn_labels
     assert "👥 Skills" in btn_labels
     assert "⚙️ Extras" in btn_labels
-    assert "🕐 Set Time" in btn_labels
+    assert "📈 Peak Hours" in btn_labels
     assert "🗑️ Delete" in btn_labels
 
 
@@ -231,3 +232,156 @@ async def test_simulator_view_skills_btn_opens_picker():
     interaction.response.edit_message.assert_called_once()
     call_kwargs = interaction.response.edit_message.call_args.kwargs
     assert isinstance(call_kwargs.get("view"), SkillsPickerView)
+
+
+# --- calculate_btn routing ---
+
+
+def _routing_db():
+    db = MagicMock()
+    db.get_or_create_user = AsyncMock(return_value=make_user_row(boss_unlock=0))
+    db.add_history = AsyncMock()
+    return db
+
+
+@pytest.mark.asyncio
+async def test_calculate_uses_engine_for_local_bait(monkeypatch):
+    from cogs.simulator import SimulatorView
+    dc = make_dc()
+    view = SimulatorView(_routing_db(), make_member(), dc,
+                         initial_state={"location_id": "river", "tool_id": "rod",
+                                        "bait_id": None, "event_id": None, "hour": 12})
+    called = {"engine": False, "api": False}
+
+    def fake_engine(*a, **k):
+        called["engine"] = True
+        return {"failChance": 10, "npcChance": 0.5, "table": [], "variants": {}}
+
+    async def fake_api(payload):
+        called["api"] = True
+        return {"failChance": 0, "npcChance": 0, "table": [], "variants": {}}
+
+    monkeypatch.setattr(sim_mod, "local_simulate", fake_engine)
+    monkeypatch.setattr(sim_mod, "call_simulator_api", fake_api)
+    await view.calculate_btn.callback(make_interaction())
+    assert called["engine"] is True
+    assert called["api"] is False
+
+
+@pytest.mark.asyncio
+async def test_calculate_uses_api_for_fallback_bait(monkeypatch):
+    from cogs.simulator import SimulatorView
+    dc = make_dc()
+    view = SimulatorView(_routing_db(), make_member(), dc,
+                         initial_state={"location_id": "river", "tool_id": "rod",
+                                        "bait_id": "lucky-bait", "event_id": None, "hour": 12})
+    called = {"engine": False, "api": False}
+
+    def fake_engine(*a, **k):
+        called["engine"] = True
+        return {"failChance": 10, "npcChance": 0.5, "table": [], "variants": {}}
+
+    async def fake_api(payload):
+        called["api"] = True
+        return {"failChance": 0, "npcChance": 0, "table": [], "variants": {}}
+
+    monkeypatch.setattr(sim_mod, "local_simulate", fake_engine)
+    monkeypatch.setattr(sim_mod, "call_simulator_api", fake_api)
+    await view.calculate_btn.callback(make_interaction())
+    assert called["api"] is True
+    assert called["engine"] is False
+
+
+# --- build_peak_hours_embed ---
+
+def test_build_peak_hours_embed_lists_24_hours_and_marks_best():
+    import cogs.simulator as sim_mod
+    dc = make_dc()
+    results = []
+    for h in range(24):
+        fail = 10 if h != 14 else 8  # hour 14 is best
+        results.append((h, {"failChance": fail, "npcChance": 0.5,
+                            "table": [{"chance": 20.0, "baseChance": 20.0,
+                                       "value": {"type": "fish-creature", "creatureID": "bass"}}],
+                            "variants": {}}))
+    state = {"location_id": "river", "tool_id": "rod", "bait_id": None, "hour": 12}
+    embed = sim_mod.build_peak_hours_embed(results, state, dc)
+    body = embed.description + "".join(f.value for f in embed.fields)
+    assert "14:00" in body
+    # best hour is flagged
+    assert "⭐" in body or "best" in body.lower()
+
+
+# --- peak_hours_btn ---
+
+@pytest.mark.asyncio
+async def test_peak_hours_btn_runs_24_local_sims_no_api(monkeypatch):
+    from cogs.simulator import SimulatorView
+    import cogs.simulator as sim_mod
+    dc = make_dc()
+    view = SimulatorView(_routing_db(), make_member(), dc,
+                         initial_state={"location_id": "river", "tool_id": "rod",
+                                        "bait_id": None, "event_id": None, "hour": 12})
+    hours_seen = []
+
+    def fake_sim(dc_, *, location_id, tool_id, bait_id, hour, bosses=False, angler_tuesday=False):
+        hours_seen.append(hour)
+        return {"failChance": 10, "npcChance": 0.5, "table": [], "variants": {}}
+
+    api_called = {"v": False}
+
+    async def fake_api(payload):
+        api_called["v"] = True
+        return {}
+
+    monkeypatch.setattr(sim_mod, "local_simulate", fake_sim)
+    monkeypatch.setattr(sim_mod, "call_simulator_api", fake_api)
+    await view.peak_hours_btn.callback(make_interaction())
+    assert sorted(hours_seen) == list(range(24))
+    assert api_called["v"] is False
+
+
+@pytest.mark.asyncio
+async def test_peak_hours_btn_fallback_bait_sets_footer(monkeypatch):
+    from cogs.simulator import SimulatorView
+    import cogs.simulator as sim_mod
+    dc = make_dc()
+    # Use a fallback bait (lucky-bait is in API_FALLBACK_BAITS)
+    view = SimulatorView(_routing_db(), make_member(), dc,
+                         initial_state={"location_id": "river", "tool_id": "rod",
+                                        "bait_id": "lucky-bait", "event_id": None, "hour": 12})
+
+    def fake_sim(dc_, *, location_id, tool_id, bait_id, hour, bosses=False, angler_tuesday=False):
+        return {"failChance": 10, "npcChance": 0.5, "table": [], "variants": {}}
+
+    async def fake_api(payload):
+        return {}
+
+    monkeypatch.setattr(sim_mod, "local_simulate", fake_sim)
+    monkeypatch.setattr(sim_mod, "call_simulator_api", fake_api)
+    interaction = make_interaction()
+    await view.peak_hours_btn.callback(interaction)
+    embed = view._last_embed
+    assert embed is not None
+    assert embed.footer is not None
+    assert "not modeled" in embed.footer.text.lower()
+
+
+# --- button layout ---
+
+@pytest.mark.asyncio
+async def test_simulator_view_has_peak_hours_not_set_time():
+    """SimulatorView must have Peak Hours; Set Time must be in ExtrasView."""
+    from cogs.simulator import SimulatorView, ExtrasView
+    from utils.embeds import EmbedBuilder
+    db = MagicMock()
+    dc = make_dc()
+    member = make_member()
+    sim_view = SimulatorView(db, member, dc)
+    sim_btn_labels = [b.label for b in sim_view.children if isinstance(b, discord.ui.Button)]
+    assert "📈 Peak Hours" in sim_btn_labels
+    assert "🕐 Set Time" not in sim_btn_labels
+
+    extras_view = ExtrasView(sim_view, EmbedBuilder.info("Test", ""))
+    extras_btn_labels = [b.label for b in extras_view.children if isinstance(b, discord.ui.Button)]
+    assert "🕐 Set Time" in extras_btn_labels

@@ -1,4 +1,58 @@
+import json
+from pathlib import Path
+from scripts.generate_loot_table import derive_loot_weight, RARITY_WEIGHTS
 from dankmemer_client import _parse_skill_categories
+
+
+def _fish_weight_for(api_result, creatures_by_id):
+    """Sum rarity weights of the fish-creatures present in an API result."""
+    total = 0.0
+    for entry in api_result["table"]:
+        v = entry["value"]
+        if v.get("type") == "fish-creature":
+            cid = v["creatureID"]
+            rarity = creatures_by_id[cid]["extra"]["rarity"]
+            total += RARITY_WEIGHTS[rarity]
+    return total
+
+
+def test_derive_loot_weight_matches_lake_sample():
+    root = Path(__file__).resolve().parent.parent
+    data = json.loads((root / "data.json").read_text(encoding="utf-8"))["data"]
+    creatures_by_id = {c["id"]: c for c in data["creatures"]["items"]}
+    locs = json.loads((root / "sampling_data" / "locations.json").read_text(encoding="utf-8"))
+    lake = next(r for r in locs if r["location_id"] == "lake")
+    fish_w = _fish_weight_for(lake["result"], creatures_by_id)
+    loot_w = derive_loot_weight(lake["result"], fish_w)
+    # lake @ hour 12 baseline: total weight 85.2, fish 79.5 -> loot 5.7
+    assert round(loot_w, 4) == 5.7
+
+
+def test_loot_weights_loaded_in_preload(monkeypatch):
+    """preload() populates loot_weights from data/loot_weights.json."""
+    import asyncio
+    from dankmemer_client import DankMemerGameClient
+
+    client = DankMemerGameClient()
+
+    async def _noop():
+        return None
+
+    # Skip the network parts of preload; only exercise the loot-weights loader.
+    monkeypatch.setattr(client, "connect", _noop)
+
+    async def fake_query():
+        return []
+    class _FakeRoute:
+        query = staticmethod(fake_query)
+    client._client = type("X", (), {
+        "creatures": _FakeRoute(), "locations": _FakeRoute(), "tools": _FakeRoute(),
+        "baits": _FakeRoute(), "npcs": _FakeRoute(), "events": _FakeRoute(),
+    })()
+
+    asyncio.run(client.preload())
+    assert "lake" in client.loot_weights
+    assert len(client.loot_weights["lake"]) == 24
 
 
 def test_parse_skill_categories_groups_by_category():

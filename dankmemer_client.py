@@ -48,6 +48,7 @@ class DankMemerGameClient:
         self.event_by_name: Dict[str, Any] = {}
         self.skill_categories: Dict[str, list] = {}
         self.location_creature_map: Dict[str, list] = {}
+        self.loot_weights: Dict[str, list] = {}
 
     async def connect(self) -> None:
         if self._client is not None:
@@ -153,6 +154,13 @@ class DankMemerGameClient:
             logger.info("Loaded %d skill categories", len(self.skill_categories))
         except Exception:
             logger.warning("Failed to load skill categories from data.json", exc_info=True)
+
+        try:
+            lw_path = _Path(__file__).parent / "data" / "loot_weights.json"
+            self.loot_weights = _json.loads(lw_path.read_text(encoding="utf-8"))
+            logger.info("Loaded loot weights for %d locations", len(self.loot_weights))
+        except Exception:
+            logger.warning("Failed to load data/loot_weights.json; local sim loot will read as 0", exc_info=True)
 
         logger.info(
             "Preload complete: %d fish, %d locations, %d tools, %d baits, %d npcs, %d events",
