@@ -396,7 +396,8 @@ class SimulatorView(discord.ui.View):
         if self._event_sel.values:
             v = self._event_sel.values[0]
             self._event_id = None if v == "__none__" else v
-        await interaction.response.defer()
+        self._build_selects()
+        await interaction.response.edit_message(view=self)
 
     def _build_payload(self, user_row) -> dict:
         try:
