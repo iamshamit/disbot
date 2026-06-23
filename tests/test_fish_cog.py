@@ -844,3 +844,33 @@ def test_fish_embed_best_location_lowest_fail():
     # Best Location = loc_low (failChance=5), not loc_high (failChance=20)
     assert "Easy Beach" in desc
     assert "Best Location" in desc
+
+
+# ---------------------------------------------------------------------------
+# build_fish_compare_embed — Best Tool + Max Catch rows (Task 4)
+# ---------------------------------------------------------------------------
+
+def test_fishcompare_embed_best_tool_row():
+    from utils.embeds import build_fish_compare_embed
+    from unittest.mock import MagicMock
+    from tests.conftest import make_tool
+    rod = make_tool(id="fishing-rod", name="Fishing Rod")
+    net = make_tool(id="net", name="Net")
+    dc = MagicMock()
+    dc.tool_by_id = {"fishing-rod": rod, "net": net}
+    c1 = make_creature(id="bass", name="Bass", tools={"fishing-rod": {"min": 1, "max": 3}})
+    c2 = make_creature(id="koi", name="Koi", tools={"net": {"min": 1, "max": 1}})
+    embed = build_fish_compare_embed(c1, c2, dc)
+    label_field = embed.fields[0].value
+    assert "Best Tool" in label_field
+    assert "Max Catch" in label_field
+
+
+def test_fishcompare_embed_no_dc_shows_dash():
+    from utils.embeds import build_fish_compare_embed
+    c1 = make_creature(id="bass", name="Bass", tools={"fishing-rod": {"min": 1, "max": 3}})
+    c2 = make_creature(id="koi", name="Koi", tools={})
+    embed = build_fish_compare_embed(c1, c2)
+    label_field = embed.fields[0].value
+    # Best Tool row exists even without dc
+    assert "Best Tool" in label_field

@@ -42,7 +42,7 @@ class FishCompareModal(discord.ui.Modal, title="Compare Fish"):
             )
             return
         await interaction.response.edit_message(
-            embed=build_fish_compare_embed(self.first, second),
+            embed=build_fish_compare_embed(self.first, second, self.dc),
             view=BackToFishView(creature=self.first, dank_client=self.dc, db=self.db, user_id=self.user_id),
         )
 
@@ -337,7 +337,7 @@ class FishCog(commands.Cog):
                 embed=EmbedBuilder.error("Not found", _NOT_FOUND_MSG.format(name=fish2)), ephemeral=True
             )
             return
-        await interaction.response.send_message(embed=build_fish_compare_embed(c1, c2))
+        await interaction.response.send_message(embed=build_fish_compare_embed(c1, c2, self.bot.dank_client))
 
     @fishcompare.autocomplete("fish1")
     @fishcompare.autocomplete("fish2")

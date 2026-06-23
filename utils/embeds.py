@@ -151,7 +151,7 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
     return embed
 
 
-def build_fish_compare_embed(c1, c2) -> discord.Embed:
+def build_fish_compare_embed(c1, c2, dc=None) -> discord.Embed:
     embed = discord.Embed(
         title=f"\u2694\ufe0f  {c1.name}  vs  {c2.name}",
         color=COMPARE_COLOR,
@@ -165,6 +165,21 @@ def build_fish_compare_embed(c1, c2) -> discord.Embed:
     var1 = len(c1.extra.get("variants") or [])
     var2 = len(c2.extra.get("variants") or [])
 
+    def _best_tool_info(c):
+        tools_data = c.extra.get("tools") or {}
+        if not tools_data:
+            return "\u2014", 0
+        best_max = max(v.get("max", 0) for v in tools_data.values())
+        best_ids = [tid for tid, v in tools_data.items() if v.get("max", 0) == best_max]
+        if dc and best_ids and best_ids[0] in dc.tool_by_id:
+            name = dc.tool_by_id[best_ids[0]].name
+        else:
+            name = best_ids[0] if best_ids else "\u2014"
+        return name, best_max
+
+    bt1_name, bt1_max = _best_tool_info(c1)
+    bt2_name, bt2_max = _best_tool_info(c2)
+
     def _col(c, other):
         ex, ox = c.extra, other.extra
         rarity = ex.get("rarity", "Common")
@@ -174,6 +189,10 @@ def build_fish_compare_embed(c1, c2) -> discord.Embed:
         olocs = len(ox.get("locations") or [])
         varis = len(ex.get("variants") or [])
         ovaris = len(ox.get("variants") or [])
+        bt_name, bt_max = _best_tool_info(c)
+        _, o_max = _best_tool_info(other)
+        bt_mark = " \u2713" if bt_max > o_max or (bt_max == o_max and bt_max > 0) else ""
+        mc_mark = " \u2713" if bt_max > o_max else ""
         return "\n".join([
             f"{rarity_emoji(rarity)} {rarity}" + (" \u2713" if rr > orr else ""),
             "\u2705" if ex.get("boss") else "\u274c",
@@ -181,9 +200,11 @@ def build_fish_compare_embed(c1, c2) -> discord.Embed:
             format_time_window(c),
             str(locs) + (" \u2713" if locs > olocs else ""),
             str(varis) + (" \u2713" if varis > ovaris else ""),
+            bt_name + bt_mark,
+            str(bt_max) + mc_mark,
         ])
 
-    embed.add_field(name="\u200b", value="**Rarity**\n**Boss**\n**Mythical**\n**Window**\n**Locations**\n**Variants**", inline=True)
+    embed.add_field(name="\u200b", value="**Rarity**\n**Boss**\n**Mythical**\n**Window**\n**Locations**\n**Variants**\n**Best Tool**\n**Max Catch**", inline=True)
     embed.add_field(name=c1.name, value=_col(c1, c2), inline=True)
     embed.add_field(name=c2.name, value=_col(c2, c1), inline=True)
     return embed
