@@ -223,10 +223,12 @@ def _build_today_embed(dc, db_row, hour: int) -> discord.Embed:
     embed.add_field(name="Current Time", value=f"{hour:02d}:00 UTC", inline=True)
     if db_row is None:
         active_value = "unavailable"
-    elif db_row["current_event"]:
-        active_value = db_row["current_event"]
     else:
-        active_value = "None set — use `/event` to set one"
+        ev = dc.event_by_name.get((db_row["current_event"] or "").lower())
+        if ev:
+            active_value = ev.name
+        else:
+            active_value = "None set — use `/event` to set one"
     embed.add_field(name="Active Event", value=active_value, inline=True)
     current_set = _catchable_set(dc, hour)
     embed.add_field(name="Catchable Right Now", value=f"{len(current_set)} fish", inline=True)
@@ -250,9 +252,9 @@ def _build_today_embed(dc, db_row, hour: int) -> discord.Embed:
             continue
         parts = []
         if opened:
-            parts.append(f"+{opened} open")
+            parts.append(f"+{opened} fish open")
         if closed:
-            parts.append(f"{closed} close")
+            parts.append(f"{closed} fish close")
         upcoming_lines.append(f"**{fhour:02d}:00** — {', '.join(parts)}")
     if upcoming_lines:
         embed.add_field(name="Upcoming (next 3h)", value="\n".join(upcoming_lines), inline=False)
@@ -384,7 +386,9 @@ class UtilitiesCog(commands.Cog):
         except Exception:
             db_row = None
         embed = _build_today_embed(self.dc, db_row, hour)
-        await interaction.response.send_message(embed=embed, view=_DeleteView())
+        view = _DeleteView()
+        await interaction.response.send_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
 
 class _DeleteView(discord.ui.View):
