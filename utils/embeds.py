@@ -445,9 +445,10 @@ def build_tool_embed(tool, dc=None) -> discord.Embed:
         ]
         if supported:
             supported.sort(key=lambda fc: fc[0].name.lower())
-            best_fish = max(supported, key=lambda fc: rarity_rank(fc[0].extra.get("rarity", "Common")))[0]
+            best_tuple = max(supported, key=lambda fc: rarity_rank(fc[0].extra.get("rarity", "Common")))
+            best_fish = best_tuple[0]
+            best_catch = best_tuple[1]
             best_rarity = best_fish.extra.get("rarity", "Common")
-            best_catch = supported[[fc[0].id for fc in supported].index(best_fish.id)][1]
             bc_lo, bc_hi = best_catch.get("min", 0), best_catch.get("max", 0)
             lines += ["", _SEP, f"**\ud83d\udc1f SUPPORTED FISH  ({len(supported)})**"]
             lines.append(
