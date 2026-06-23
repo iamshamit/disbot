@@ -1,5 +1,4 @@
 from __future__ import annotations
-import pytest
 import discord
 from datetime import time as dt_time
 from unittest.mock import AsyncMock, MagicMock, patch

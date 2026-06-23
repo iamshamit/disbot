@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timezone
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -16,7 +16,7 @@ _RARITY_ORDER = [
 
 
 def _utc_hour() -> int:
-    return datetime.utcnow().hour
+    return datetime.now(timezone.utc).hour
 
 
 def _catchable_set(dc, hour: int, location_id: str | None = None) -> set[str]:
@@ -83,15 +83,22 @@ class UtilitiesCog(commands.Cog):
         embed = _build_rarity_embed(self.dc, hour)
         view = _DeleteView()
         await interaction.response.send_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
 
 class _DeleteView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
+        self.message: discord.Message | None = None
 
     async def on_timeout(self) -> None:
         for item in self.children:
             item.disabled = True  # type: ignore[attr-defined]
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
