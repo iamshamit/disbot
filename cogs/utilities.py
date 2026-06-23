@@ -77,7 +77,7 @@ def _build_event_overview_pages(events: list, active_event: str | None) -> list[
         embed = discord.Embed(title="Fishing Events", color=0x5865F2)
         for ev in chunk:
             last_dates = ev.extra.get("last", [])
-            last_str = last_dates[0][:10] if last_dates else "Unknown"
+            last_str = str(last_dates[0])[:10] if last_dates else "Unknown"
             desc = ev.extra.get("description", "")
             desc_short = (desc[:80] + "…") if len(desc) > 80 else desc
             star = "⭐ " if ev.name == active_event else ""
@@ -102,7 +102,7 @@ def _build_event_detail_embed(event, active_event: str | None) -> discord.Embed:
     if last_dates:
         embed.add_field(
             name="Last Seen",
-            value="\n".join(d[:10] for d in last_dates),
+            value="\n".join(str(d)[:10] for d in last_dates),
             inline=False,
         )
     if event.name == active_event:
