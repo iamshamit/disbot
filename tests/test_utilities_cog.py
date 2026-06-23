@@ -171,3 +171,28 @@ def test_time_upcoming_windows_next_6h():
     windows = u._upcoming_windows(dc, hour=4, location_id=None, ahead=6)
     assert 5 in windows
     assert "Bass" in windows[5]
+
+
+# ── /today ───────────────────────────────────────────────────────────────────
+
+def test_today_shows_active_event_from_profile():
+    import cogs.utilities as u
+    dc = _make_dc(fish=[_make_fish("bass", full_day=True)], locations=[_make_location("river")])
+    db_row = {"current_event": "Token Cloning Experiment"}
+    embed = u._build_today_embed(dc, db_row, hour=10)
+    active_field = next((f for f in embed.fields if f.name == "Active Event"), None)
+    assert active_field is not None
+    assert "Token Cloning Experiment" in active_field.value
+
+
+def test_today_top_3_locations():
+    import cogs.utilities as u
+    locs = [_make_location(f"loc{i}") for i in range(5)]
+    # bass is in loc0, loc1, loc2 only
+    bass = _make_fish("bass", full_day=True, locations=["loc0", "loc1", "loc2"])
+    dc = _make_dc(fish=[bass], locations=locs)
+    embed = u._build_today_embed(dc, db_row=None, hour=10)
+    top_field = next((f for f in embed.fields if f.name == "Top Locations"), None)
+    assert top_field is not None
+    lines = top_field.value.strip().split("\n")
+    assert len(lines) <= 3

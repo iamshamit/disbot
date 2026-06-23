@@ -217,6 +217,49 @@ def _build_time_embed(dc, hour: int, location_id: str | None) -> discord.Embed:
     return embed
 
 
+def _build_today_embed(dc, db_row, hour: int) -> discord.Embed:
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    embed = discord.Embed(title=f"Today's Fishing — {date_str} UTC", color=0x5865F2)
+    embed.add_field(name="Current Time", value=f"{hour:02d}:00 UTC", inline=True)
+    if db_row is None:
+        active_value = "unavailable"
+    elif db_row["current_event"]:
+        active_value = db_row["current_event"]
+    else:
+        active_value = "None set — use `/event` to set one"
+    embed.add_field(name="Active Event", value=active_value, inline=True)
+    current_set = _catchable_set(dc, hour)
+    embed.add_field(name="Catchable Right Now", value=f"{len(current_set)} fish", inline=True)
+    loc_counts = sorted(
+        ((loc.name, len(_catchable_set(dc, hour, loc.id))) for loc in dc.location_by_id.values()),
+        key=lambda x: x[1],
+        reverse=True,
+    )
+    embed.add_field(
+        name="Top Locations",
+        value="\n".join(f"{name} — {count} fish" for name, count in loc_counts[:3]),
+        inline=False,
+    )
+    upcoming_lines = []
+    for delta in range(1, 4):
+        fhour = (hour + delta) % 24
+        future_set = _catchable_set(dc, fhour)
+        opened = len(future_set - current_set)
+        closed = len(current_set - future_set)
+        if opened == 0 and closed == 0:
+            continue
+        parts = []
+        if opened:
+            parts.append(f"+{opened} open")
+        if closed:
+            parts.append(f"{closed} close")
+        upcoming_lines.append(f"**{fhour:02d}:00** — {', '.join(parts)}")
+    if upcoming_lines:
+        embed.add_field(name="Upcoming (next 3h)", value="\n".join(upcoming_lines), inline=False)
+    embed.set_footer(text="Update your setup with /profile")
+    return embed
+
+
 class TimeView(discord.ui.View):
     def __init__(self, dc):
         super().__init__(timeout=300)
@@ -327,6 +370,21 @@ class UtilitiesCog(commands.Cog):
         view = TimeView(self.dc)
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()
+
+    @app_commands.command(name="today", description="Daily summary: current fish, top locations, and active event.")
+    async def today(self, interaction: discord.Interaction):
+        if not self.dc.fish_by_id:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not ready", _PRELOAD_MSG), ephemeral=True
+            )
+            return
+        hour = _utc_hour()
+        try:
+            db_row = await self.db.get_or_create_user(str(interaction.user.id))
+        except Exception:
+            db_row = None
+        embed = _build_today_embed(self.dc, db_row, hour)
+        await interaction.response.send_message(embed=embed, view=_DeleteView())
 
 
 class _DeleteView(discord.ui.View):
