@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from utils.embeds import EmbedBuilder, emoji_from_url
 from utils.views import DynamicPaginationView
-from utils.formatters import is_available_now, rarity_rank, rarity_emoji
+from utils.formatters import is_available_now, rarity_emoji
 
 _PRELOAD_GUARD_MSG = "⏳ Data is still loading, please try again in a moment."
 
@@ -135,6 +135,7 @@ class SearchFishView(DynamicPaginationView):
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=4)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.message.delete()
+        self.stop()
 
 
 def build_search_location_embed(locations: list) -> discord.Embed:
