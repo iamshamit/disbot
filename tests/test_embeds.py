@@ -129,7 +129,7 @@ def test_build_fishlist_embed_footer_format():
     embed = build_fishlist_embed(creatures, page=0, total_pages=3, sort="alphabetical", rarity_filter="All")
     assert "Page 1 / 3" in embed.footer.text
     assert "Sort: alphabetical" in embed.footer.text
-    assert "Filter: All" in embed.footer.text
+    assert "Rarity: All" in embed.footer.text
 
 
 # --- Location embeds ---

@@ -274,6 +274,8 @@ def build_fishlist_embed(
     total_pages: int,
     sort: str,
     rarity_filter: str,
+    tool_filter: str = "All",
+    type_filter: str = "All",
 ) -> discord.Embed:
     color = RARITY_COLORS.get(rarity_filter, COMPARE_COLOR)
     title = f"All Fish  ({len(creatures)} total)" if rarity_filter == "All" else f"{rarity_filter} Fish  ({len(creatures)})"
@@ -301,7 +303,12 @@ def build_fishlist_embed(
         lines.append(f"{rem} **{c.name}**{badges}  \u00b7  {avail} now")
 
     embed.description = "\n".join(lines) if lines else "*No fish match this filter.*"
-    embed.set_footer(text=f"Page {page + 1} / {total_pages}  \u00b7  Sort: {sort}  \u00b7  Filter: {rarity_filter}")
+    active = [f"Sort: {sort}", f"Rarity: {rarity_filter}"]
+    if tool_filter != "All":
+        active.append(f"Tool: {tool_filter}")
+    if type_filter != "All":
+        active.append(f"Type: {type_filter}")
+    embed.set_footer(text=f"Page {page + 1} / {total_pages}  \u00b7  " + "  \u00b7  ".join(active))
     return embed
 
 

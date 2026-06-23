@@ -617,10 +617,12 @@ def test_fishlistview_has_sort_and_rarity_selects():
     dc = make_mock_dank_client()
     view = FishListView(dc)
     selects = [item for item in view.children if isinstance(item, discord.ui.Select)]
-    assert len(selects) == 2
+    assert len(selects) == 4
     placeholders = {s.placeholder for s in selects}
     assert any("Sort" in (p or "") for p in placeholders)
     assert any("Filter" in (p or "") or "Rarity" in (p or "") for p in placeholders)
+    assert any("Tool" in (p or "") for p in placeholders)
+    assert any("Type" in (p or "") for p in placeholders)
 
 
 @pytest.mark.asyncio
@@ -874,3 +876,62 @@ def test_fishcompare_embed_no_dc_shows_dash():
     label_field = embed.fields[0].value
     # Best Tool row exists even without dc
     assert "Best Tool" in label_field
+
+
+# ---------------------------------------------------------------------------
+# FishListView — new filters (Task 5)
+# ---------------------------------------------------------------------------
+
+def _make_fishlist_dc():
+    from unittest.mock import MagicMock
+    from tests.conftest import make_tool
+    rod = make_tool(id="fishing-rod", name="Fishing Rod",
+                    imageURL="https://cdn.discordapp.com/emojis/1162188819832000572.png")
+    net = make_tool(id="net", name="Net",
+                    imageURL="https://cdn.discordapp.com/emojis/1162188813259522070.png")
+    c_rod = make_creature(id="bass", name="Bass",
+                          tools={"fishing-rod": {"min": 1, "max": 2}}, full_day=True)
+    c_net = make_creature(id="trout", name="Trout",
+                          tools={"net": {"min": 1, "max": 3}}, full_day=True)
+    c_both = make_creature(id="koi", name="Koi",
+                           tools={"fishing-rod": {"min": 1, "max": 1}, "net": {"min": 1, "max": 2}},
+                           full_day=True)
+    dc = MagicMock()
+    dc.fish_by_id = {"bass": c_rod, "trout": c_net, "koi": c_both}
+    dc.tool_by_id = {"fishing-rod": rod, "net": net}
+    return dc
+
+
+def test_fishlist_tool_filter_narrows_results():
+    from cogs.fish import FishListView
+    dc = _make_fishlist_dc()
+    view = FishListView(dc)
+    view.tool_filter = "fishing-rod"
+    view._refresh()
+    ids = [c.id for c in view.filtered]
+    assert "bass" in ids
+    assert "koi" in ids
+    assert "trout" not in ids
+
+
+def test_fishlist_type_filter_available_now():
+    from cogs.fish import FishListView
+    dc = _make_fishlist_dc()
+    view = FishListView(dc)
+    view.type_filter = "Available Now"
+    view._refresh()
+    # All 3 creatures are full_day=True → all should pass Available Now filter
+    assert len(view.filtered) == 3
+
+
+def test_fishlist_type_filter_has_variants():
+    from cogs.fish import FishListView
+    dc = _make_fishlist_dc()
+    c_variant = make_creature(id="variant_fish", name="Variant Fish",
+                               variants=[{"name": "Gold", "chance": 5}], full_day=True)
+    dc.fish_by_id["variant_fish"] = c_variant
+    view = FishListView(dc)
+    view.type_filter = "Has Variants"
+    view._refresh()
+    assert len(view.filtered) == 1
+    assert view.filtered[0].id == "variant_fish"
