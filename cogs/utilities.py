@@ -184,6 +184,78 @@ class EventDetailView(discord.ui.View):
         await interaction.message.delete()
 
 
+def _build_time_embed(dc, hour: int, location_id: str | None) -> discord.Embed:
+    if location_id:
+        loc = dc.location_by_id.get(location_id)
+        loc_name = loc.name if loc else location_id
+        catchable_names = sorted(
+            dc.fish_by_id[fid].name for fid in _catchable_set(dc, hour, location_id)
+        )
+        embed = discord.Embed(title=f"{loc_name} — {hour:02d}:00 UTC", color=0x5865F2)
+        embed.add_field(
+            name="Catchable Now",
+            value="\n".join(catchable_names) if catchable_names else "No fish catchable at this hour.",
+            inline=False,
+        )
+    else:
+        total = len(_catchable_set(dc, hour))
+        embed = discord.Embed(
+            title=f"Current UTC — {hour:02d}:00",
+            description=f"**{total}** fish catchable across all locations right now.",
+            color=0x5865F2,
+        )
+    windows = _upcoming_windows(dc, hour, location_id)
+    if windows:
+        lines = [f"**{fh:02d}:00** — {', '.join(names)}" for fh, names in sorted(windows.items())]
+        embed.add_field(name="Upcoming Windows (next 6h)", value="\n".join(lines), inline=False)
+    else:
+        embed.add_field(
+            name="Upcoming Windows (next 6h)",
+            value="No new windows in the next 6 hours.",
+            inline=False,
+        )
+    return embed
+
+
+class TimeView(discord.ui.View):
+    def __init__(self, dc):
+        super().__init__(timeout=300)
+        self.dc = dc
+        self._loc_id: str | None = None
+        self.message: discord.Message | None = None
+        loc_opts = [
+            discord.SelectOption(label=loc.name, value=loc.id)
+            for loc in sorted(dc.location_by_id.values(), key=lambda l: l.name)
+        ]
+        self._loc_sel = discord.ui.Select(
+            placeholder="Filter by location…",
+            options=loc_opts,
+            min_values=0,
+            max_values=1,
+            row=0,
+        )
+        self._loc_sel.callback = self._on_select
+        self.add_item(self._loc_sel)
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True  # type: ignore[attr-defined]
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
+    async def _on_select(self, interaction: discord.Interaction) -> None:
+        self._loc_id = self._loc_sel.values[0] if self._loc_sel.values else None
+        embed = _build_time_embed(self.dc, _utc_hour(), self._loc_id)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=1)
+    async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+
 class UtilitiesCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -242,6 +314,19 @@ class UtilitiesCog(commands.Cog):
             for e in self.dc.event_by_id.values()
             if current.lower() in e.name.lower()
         ][:25]
+
+    @app_commands.command(name="time", description="Show which fish are catchable right now and upcoming windows.")
+    async def time(self, interaction: discord.Interaction):
+        if not self.dc.fish_by_id:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not ready", _PRELOAD_MSG), ephemeral=True
+            )
+            return
+        hour = _utc_hour()
+        embed = _build_time_embed(self.dc, hour, None)
+        view = TimeView(self.dc)
+        await interaction.response.send_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
 
 class _DeleteView(discord.ui.View):

@@ -134,3 +134,40 @@ async def test_event_set_current_updates_profile():
     db.update_user.assert_called_once_with("999", current_event="Great Event")
     assert set_btn.disabled is True
     assert set_btn.label == "✅ Set"
+
+
+# ── /time ────────────────────────────────────────────────────────────────────
+
+def test_time_default_shows_all_locations():
+    import cogs.utilities as u
+    # bass is full_day → always catchable
+    dc = _make_dc(fish=[_make_fish("bass", full_day=True, locations=["river"])], locations=[_make_location("river")])
+    embed = u._build_time_embed(dc, hour=12, location_id=None)
+    assert "1" in (embed.description or "")  # 1 fish catchable
+
+
+def test_time_select_filters_to_location():
+    import cogs.utilities as u
+    fish_river = _make_fish("bass", full_day=True, locations=["river"])
+    fish_lake = _make_fish("trout", full_day=True, locations=["lake"])
+    dc = _make_dc(
+        fish=[fish_river, fish_lake],
+        locations=[_make_location("river"), _make_location("lake")],
+    )
+    embed = u._build_time_embed(dc, hour=12, location_id="river")
+    field_names = [f.name for f in embed.fields]
+    assert "Catchable Now" in field_names
+    catchable_field = next(f for f in embed.fields if f.name == "Catchable Now")
+    assert "Bass" in catchable_field.value
+    assert "Trout" not in catchable_field.value
+
+
+def test_time_upcoming_windows_next_6h():
+    import cogs.utilities as u
+    # bass: available only hours 5..10
+    bass = _make_fish("bass", full_day=False, start_h=5, end_h=10, locations=["river"])
+    dc = _make_dc(fish=[bass], locations=[_make_location("river")])
+    # At hour 4, bass is NOT catchable. At hour 5 it becomes available.
+    windows = u._upcoming_windows(dc, hour=4, location_id=None, ahead=6)
+    assert 5 in windows
+    assert "Bass" in windows[5]
