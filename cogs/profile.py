@@ -1,4 +1,5 @@
 from __future__ import annotations
+import io
 import json as _json
 import discord
 from discord import app_commands
@@ -444,6 +445,60 @@ class ResetConfirmView(discord.ui.View):
         )
 
 
+_IMPORT_PROFILE_KEYS = (
+    "current_tool", "current_bait", "favorite_location", "current_event",
+    "fishing_skill", "luck_skill", "efficiency_skill", "prestige", "coins",
+    "boss_unlock", "mythical_unlock", "skills", "timezone", "theme", "compact_mode",
+)
+
+
+class ImportModal(discord.ui.Modal, title="Import Profile"):
+    json_input: discord.ui.TextInput = discord.ui.TextInput(
+        label="Paste your profile JSON",
+        style=discord.TextStyle.paragraph,
+        max_length=4000,
+    )
+
+    def __init__(self, db, member, message):
+        super().__init__()
+        self.db = db
+        self.member = member
+        self.message = message
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        raw = self.json_input.value
+        try:
+            payload = _json.loads(raw)
+        except Exception:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Invalid JSON", "Could not parse the pasted data."),
+                ephemeral=True,
+            )
+            return
+        if payload.get("version") != 1:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Incompatible format", "This export was made with an unsupported version."),
+                ephemeral=True,
+            )
+            return
+        profile = payload.get("profile", {})
+        update_fields = {k: profile[k] for k in _IMPORT_PROFILE_KEYS if k in profile}
+        try:
+            await self.db.update_user(str(self.member.id), **update_fields)
+            for fav in payload.get("favorites", []):
+                await self.db.add_favorite(str(self.member.id), fav["type"], fav["item_id"])
+        except Exception as exc:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Import failed", f"Could not restore profile: {exc}"),
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            embed=EmbedBuilder.info("Profile Imported", "Your profile has been restored."),
+            ephemeral=True,
+        )
+
+
 class ProfileView(discord.ui.View):
     def __init__(self, db, member, dank_client):
         super().__init__(timeout=300)
@@ -451,10 +506,6 @@ class ProfileView(discord.ui.View):
         self.member = member
         self.dc = dank_client
         self.message: discord.Message | None = None
-        # Disable stub buttons
-        for item in self.children:
-            if isinstance(item, discord.ui.Button) and item.label in ("📤 Export", "📥 Import"):
-                item.disabled = True
 
     async def on_timeout(self) -> None:
         for item in self.children:
@@ -529,13 +580,35 @@ class ProfileView(discord.ui.View):
             EditStatsModal(self.db, self.member, interaction.message, self.dc)
         )
 
-    @discord.ui.button(label="📤 Export", style=discord.ButtonStyle.secondary, disabled=True, row=1)
+    @discord.ui.button(label="📤 Export", style=discord.ButtonStyle.secondary, row=1)
     async def export_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        user_id = str(self.member.id)
+        try:
+            user_row = await self.db.get_or_create_user(user_id)
+            fav_rows = await self.db.get_favorites(user_id)
+        except Exception as exc:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Export failed", f"Could not read profile: {exc}"),
+                ephemeral=True,
+            )
+            return
+        payload = {
+            "version": 1,
+            "profile": {k: user_row[k] for k in _IMPORT_PROFILE_KEYS},
+            "favorites": [{"type": r["type"], "item_id": r["item_id"]} for r in fav_rows],
+        }
+        raw = _json.dumps(payload, indent=2).encode()
+        await interaction.response.send_message(
+            embed=EmbedBuilder.info("Profile Exported", "Your profile data is attached."),
+            file=discord.File(io.BytesIO(raw), filename="profile.json"),
+            ephemeral=True,
+        )
 
-    @discord.ui.button(label="📥 Import", style=discord.ButtonStyle.secondary, disabled=True, row=1)
+    @discord.ui.button(label="📥 Import", style=discord.ButtonStyle.secondary, row=1)
     async def import_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        await interaction.response.send_modal(
+            ImportModal(self.db, self.member, interaction.message)
+        )
 
 
 def _group_favs(rows) -> dict[str, list[str]]:

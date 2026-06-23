@@ -1,6 +1,7 @@
 """Tests for cogs/profile.py and profile embed builders."""
 from __future__ import annotations
 
+import json as _json
 import pytest
 import discord
 from unittest.mock import AsyncMock, MagicMock
@@ -192,7 +193,7 @@ async def test_profile_view_has_expected_buttons():
     assert any("Reset" in l for l in labels)
     export_btn = next((item for item in view.children if isinstance(item, discord.ui.Button) and "Export" in item.label), None)
     assert export_btn is not None
-    assert export_btn.disabled is True
+    assert export_btn.disabled is False
 
 @pytest.mark.asyncio
 async def test_profile_view_edit_setup_btn_shows_picker():
@@ -646,3 +647,107 @@ async def test_settings_default_sim_values_shows_embed():
     sent_embed = call_kwargs.kwargs.get("embed")
     assert sent_embed is not None
     assert "Fishing Rod" in str(sent_embed.fields)
+
+
+# ---------------------------------------------------------------------------
+# Task 4: Profile Export / Import
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_export_sends_json_file():
+    from cogs.profile import ProfileView
+
+    db = MagicMock()
+    db.get_or_create_user = AsyncMock(return_value=make_user_row(
+        current_tool="Fishing Rod", current_bait="Worm",
+    ))
+    db.get_favorites = AsyncMock(return_value=[])
+    member = make_member()
+    dc = MagicMock()
+    view = ProfileView(db, member, dc)
+
+    inter = make_interaction()
+    await view.export_btn.callback(inter)
+
+    inter.response.send_message.assert_awaited_once()
+    call_kwargs = inter.response.send_message.call_args
+    assert call_kwargs.kwargs.get("ephemeral") is True
+    sent_file = call_kwargs.kwargs.get("file")
+    assert sent_file is not None
+    # Read the file content and verify it's valid JSON with version=1
+    sent_file.fp.seek(0)
+    payload = _json.loads(sent_file.fp.read())
+    assert payload["version"] == 1
+    assert "profile" in payload
+    assert payload["profile"]["current_tool"] == "Fishing Rod"
+
+
+@pytest.mark.asyncio
+async def test_import_restores_profile_fields():
+    from cogs.profile import ProfileView
+
+    db = MagicMock()
+    db.get_or_create_user = AsyncMock(return_value=make_user_row())
+    db.update_user = AsyncMock()
+    db.add_favorite = AsyncMock()
+    member = make_member()
+    dc = MagicMock()
+    view = ProfileView(db, member, dc)
+
+    payload = {
+        "version": 1,
+        "profile": {
+            "current_tool": "Fishing Rod",
+            "current_bait": "Worm",
+            "favorite_location": "River",
+            "current_event": None,
+            "fishing_skill": 2,
+            "luck_skill": 1,
+            "efficiency_skill": 0,
+            "prestige": 0,
+            "coins": 500,
+            "boss_unlock": 1,
+            "mythical_unlock": 0,
+            "skills": None,
+            "timezone": "UTC",
+            "theme": "dark",
+            "compact_mode": 0,
+        },
+        "favorites": [{"type": "fish", "item_id": "bass"}],
+    }
+
+    inter = make_interaction()
+    # Simulate the modal submit directly
+    from cogs.profile import ImportModal
+    modal = ImportModal(db, member, inter.message)
+    modal.json_input.default = _json.dumps(payload)
+
+    # Manually call on_submit with the mocked interaction
+    inter2 = make_interaction()
+    inter2.data = {"components": [{"components": [{"value": _json.dumps(payload)}]}]}
+    # Set the text input value directly
+    modal.json_input._value = _json.dumps(payload)
+    await modal.on_submit(inter2)
+
+    db.update_user.assert_awaited_once()
+    call_kwargs = db.update_user.call_args
+    assert call_kwargs.kwargs.get("current_tool") == "Fishing Rod"
+    assert call_kwargs.kwargs.get("coins") == 500
+    db.add_favorite.assert_awaited_once_with("123", "fish", "bass")
+
+
+@pytest.mark.asyncio
+async def test_import_rejects_invalid_json():
+    from cogs.profile import ImportModal
+
+    db = MagicMock()
+    member = make_member()
+    modal = ImportModal(db, member, MagicMock())
+    modal.json_input._value = "not valid json {"
+
+    inter = make_interaction()
+    await modal.on_submit(inter)
+
+    inter.response.send_message.assert_awaited_once()
+    call_kwargs = inter.response.send_message.call_args
+    assert call_kwargs.kwargs.get("ephemeral") is True
