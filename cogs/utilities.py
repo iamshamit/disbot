@@ -115,6 +115,7 @@ class EventOverviewView(discord.ui.View):
         super().__init__(timeout=300)
         self.pages = pages
         self.page = 0
+        self.message: discord.Message | None = None
         self._sync()
 
     def _sync(self) -> None:
@@ -124,6 +125,11 @@ class EventOverviewView(discord.ui.View):
     async def on_timeout(self) -> None:
         for item in self.children:
             item.disabled = True  # type: ignore[attr-defined]
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
     @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary, row=0)
     async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -148,10 +154,16 @@ class EventDetailView(discord.ui.View):
         self.db = db
         self.event = event
         self.user_id = user_id
+        self.message: discord.Message | None = None
 
     async def on_timeout(self) -> None:
         for item in self.children:
             item.disabled = True  # type: ignore[attr-defined]
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
     @discord.ui.button(label="⭐ Set as Current", style=discord.ButtonStyle.primary, row=0)
     async def set_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -209,15 +221,19 @@ class UtilitiesCog(commands.Cog):
                 return
             user_row = await self.db.get_or_create_user(str(interaction.user.id))
             embed = _build_event_detail_embed(event_obj, user_row["current_event"])
+            view = EventDetailView(self.db, event_obj, str(interaction.user.id))
             await interaction.response.send_message(
                 embed=embed,
-                view=EventDetailView(self.db, event_obj, str(interaction.user.id)),
+                view=view,
             )
+            view.message = await interaction.original_response()
         else:
             user_row = await self.db.get_or_create_user(str(interaction.user.id))
             events = sorted(self.dc.event_by_id.values(), key=lambda e: e.name)
             pages = _build_event_overview_pages(events, user_row["current_event"])
-            await interaction.response.send_message(embed=pages[0], view=EventOverviewView(pages))
+            view = EventOverviewView(pages)
+            await interaction.response.send_message(embed=pages[0], view=view)
+            view.message = await interaction.original_response()
 
     @event.autocomplete("name")
     async def event_autocomplete(self, interaction: discord.Interaction, current: str):
