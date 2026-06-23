@@ -1,5 +1,6 @@
 from __future__ import annotations
 import discord
+import pytest
 from datetime import time as dt_time
 from unittest.mock import AsyncMock, MagicMock, patch
 from dankmemer.utils import DotDict
@@ -86,3 +87,50 @@ def test_rarity_currently_catchable_uses_utc_hour():
     # bass is full_day=True so it should be in "Common" now count
     common_field = next(f for f in embed.fields if f.name == "Common")
     assert "Now: **1**" in common_field.value
+
+
+# ── /event ──────────────────────────────────────────────────────────────────
+
+def test_event_overview_paginates():
+    import cogs.utilities as u
+    events = [_make_event(f"ev{i}", f"Event {i}") for i in range(8)]
+    pages = u._build_event_overview_pages(events, active_event=None)
+    assert len(pages) == 2  # 8 events, 5 per page → 2 pages
+    assert "1/2" in (pages[0].footer.text or "")
+
+
+def test_event_overview_stars_active_event():
+    import cogs.utilities as u
+    events = [
+        _make_event("ev1", "Alpha Event"),
+        _make_event("ev2", "Beta Event"),
+    ]
+    pages = u._build_event_overview_pages(events, active_event="Alpha Event")
+    body = " ".join(f.name for f in pages[0].fields)
+    assert "⭐" in body
+    # Beta should not have a star
+    beta_field = next(f for f in pages[0].fields if "Beta" in f.name)
+    assert "⭐" not in beta_field.name
+
+
+def test_event_detail_shows_description():
+    import cogs.utilities as u
+    ev = _make_event("ev1", "Great Event", description="Full event description here.")
+    embed = u._build_event_detail_embed(ev, active_event=None)
+    assert "Full event description here." in (embed.description or "")
+    assert embed.title == "Great Event"
+
+
+@pytest.mark.asyncio
+async def test_event_set_current_updates_profile():
+    import cogs.utilities as u
+    db = MagicMock()
+    db.update_user = AsyncMock()
+    ev = _make_event("ev1", "Great Event")
+    view = u.EventDetailView(db, ev, user_id="999")
+    interaction = _make_interaction()
+    set_btn = next(b for b in view.children if isinstance(b, discord.ui.Button) and "Set" in b.label)
+    await set_btn.callback(interaction)
+    db.update_user.assert_called_once_with("999", current_event="Great Event")
+    assert set_btn.disabled is True
+    assert set_btn.label == "✅ Set"

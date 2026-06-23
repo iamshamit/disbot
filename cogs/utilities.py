@@ -66,6 +66,112 @@ def _build_rarity_embed(dc, hour: int) -> discord.Embed:
     return embed
 
 
+_EVENT_PAGE_SIZE = 5
+
+
+def _build_event_overview_pages(events: list, active_event: str | None) -> list[discord.Embed]:
+    total_pages = max(1, (len(events) + _EVENT_PAGE_SIZE - 1) // _EVENT_PAGE_SIZE)
+    pages = []
+    for page_idx in range(total_pages):
+        chunk = events[page_idx * _EVENT_PAGE_SIZE: (page_idx + 1) * _EVENT_PAGE_SIZE]
+        embed = discord.Embed(title="Fishing Events", color=0x5865F2)
+        for ev in chunk:
+            last_dates = ev.extra.get("last", [])
+            last_str = last_dates[0][:10] if last_dates else "Unknown"
+            desc = ev.extra.get("description", "")
+            desc_short = (desc[:80] + "…") if len(desc) > 80 else desc
+            star = "⭐ " if ev.name == active_event else ""
+            embed.add_field(
+                name=f"{star}{ev.name}",
+                value=f"{desc_short}\nLast seen: **{last_str}**",
+                inline=False,
+            )
+        embed.set_footer(text=f"Page {page_idx + 1}/{total_pages}")
+        pages.append(embed)
+    return pages
+
+
+def _build_event_detail_embed(event, active_event: str | None) -> discord.Embed:
+    embed = discord.Embed(
+        title=event.name,
+        description=event.extra.get("description", ""),
+        color=0x5865F2,
+    )
+    embed.set_thumbnail(url=event.imageURL)
+    last_dates = event.extra.get("last", [])[:3]
+    if last_dates:
+        embed.add_field(
+            name="Last Seen",
+            value="\n".join(d[:10] for d in last_dates),
+            inline=False,
+        )
+    if event.name == active_event:
+        embed.set_footer(text="Active")
+    return embed
+
+
+class EventOverviewView(discord.ui.View):
+    def __init__(self, pages: list[discord.Embed]):
+        super().__init__(timeout=300)
+        self.pages = pages
+        self.page = 0
+        self._sync()
+
+    def _sync(self) -> None:
+        self.prev_btn.disabled = self.page == 0
+        self.next_btn.disabled = self.page >= len(self.pages) - 1
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True  # type: ignore[attr-defined]
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary, row=0)
+    async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page -= 1
+        self._sync()
+        await interaction.response.edit_message(embed=self.pages[self.page], view=self)
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary, row=0)
+    async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page += 1
+        self._sync()
+        await interaction.response.edit_message(embed=self.pages[self.page], view=self)
+
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=0)
+    async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+
+class EventDetailView(discord.ui.View):
+    def __init__(self, db, event, user_id: str):
+        super().__init__(timeout=300)
+        self.db = db
+        self.event = event
+        self.user_id = user_id
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True  # type: ignore[attr-defined]
+
+    @discord.ui.button(label="⭐ Set as Current", style=discord.ButtonStyle.primary, row=0)
+    async def set_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            await self.db.update_user(self.user_id, current_event=self.event.name)
+        except Exception:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Failed to save", "Could not update your profile."),
+                ephemeral=True,
+            )
+            return
+        button.label = "✅ Set"
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=0)
+    async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+
 class UtilitiesCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -84,6 +190,42 @@ class UtilitiesCog(commands.Cog):
         view = _DeleteView()
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()
+
+    @app_commands.command(name="event", description="Browse fishing events or view a specific event.")
+    @app_commands.describe(name="Event name — leave blank for an overview of all events")
+    async def event(self, interaction: discord.Interaction, name: str | None = None):
+        if not self.dc.event_by_id:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not ready", _PRELOAD_MSG), ephemeral=True
+            )
+            return
+        if name:
+            event_obj = self.dc.event_by_name.get(name.lower())
+            if event_obj is None:
+                await interaction.response.send_message(
+                    embed=EmbedBuilder.error("Not found", f"No event named **{name}** found."),
+                    ephemeral=True,
+                )
+                return
+            user_row = await self.db.get_or_create_user(str(interaction.user.id))
+            embed = _build_event_detail_embed(event_obj, user_row["current_event"])
+            await interaction.response.send_message(
+                embed=embed,
+                view=EventDetailView(self.db, event_obj, str(interaction.user.id)),
+            )
+        else:
+            user_row = await self.db.get_or_create_user(str(interaction.user.id))
+            events = sorted(self.dc.event_by_id.values(), key=lambda e: e.name)
+            pages = _build_event_overview_pages(events, user_row["current_event"])
+            await interaction.response.send_message(embed=pages[0], view=EventOverviewView(pages))
+
+    @event.autocomplete("name")
+    async def event_autocomplete(self, interaction: discord.Interaction, current: str):
+        return [
+            app_commands.Choice(name=e.name, value=e.name)
+            for e in self.dc.event_by_id.values()
+            if current.lower() in e.name.lower()
+        ][:25]
 
 
 class _DeleteView(discord.ui.View):
