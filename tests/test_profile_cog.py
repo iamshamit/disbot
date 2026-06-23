@@ -576,3 +576,73 @@ async def test_skills_picker_cancel_calls_return_fn():
     interaction = make_interaction()
     await view._cancel(interaction)
     assert returned
+
+
+# ---------------------------------------------------------------------------
+# Task 3: Profile stub wiring
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_favorites_simulate_btn_opens_simulator():
+    from cogs.profile import FavoritesView
+    from cogs.simulator import SimulatorView
+
+    db = MagicMock()
+    db.get_favorites = AsyncMock(return_value=[])
+    user = make_member()
+    dc = MagicMock()
+    dc.location_by_id = {"river": MagicMock(id="river", name="River")}
+    dc.tool_by_id = {}
+    dc.bait_by_id = {}
+    dc.event_by_id = {}
+
+    view = FavoritesView(db, user, dc, [])
+    view.selected_type = "location"
+    view.selected_id = "river"
+
+    inter = make_interaction()
+    await view.sim_btn.callback(inter)
+
+    inter.response.send_message.assert_awaited_once()
+    call_kwargs = inter.response.send_message.call_args
+    sent_view = call_kwargs.kwargs.get("view")
+    assert isinstance(sent_view, SimulatorView)
+    assert sent_view._loc_id == "river"
+
+
+@pytest.mark.asyncio
+async def test_simulations_tab_queries_history():
+    from cogs.profile import HistoryView
+
+    db = MagicMock()
+    db.get_history = AsyncMock(return_value=[])
+    user = make_member()
+    view = HistoryView(db, user)
+
+    inter = make_interaction()
+    await view.sim_tab.callback(inter)
+
+    db.get_history.assert_awaited_once_with("123", "simulation")
+
+
+@pytest.mark.asyncio
+async def test_settings_default_sim_values_shows_embed():
+    from cogs.profile import SettingsView
+
+    db = MagicMock()
+    db.get_or_create_user = AsyncMock(return_value=make_user_row(
+        current_tool="Fishing Rod", current_bait="Worm",
+        favorite_location="River", current_event=None,
+    ))
+    member = make_member()
+    view = SettingsView(db, member)
+
+    inter = make_interaction()
+    await view.sim_defaults_btn.callback(inter)
+
+    inter.response.send_message.assert_awaited_once()
+    call_kwargs = inter.response.send_message.call_args
+    assert call_kwargs.kwargs.get("ephemeral") is True
+    sent_embed = call_kwargs.kwargs.get("embed")
+    assert sent_embed is not None
+    assert "Fishing Rod" in str(sent_embed.fields)

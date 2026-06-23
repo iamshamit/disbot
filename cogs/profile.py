@@ -579,7 +579,9 @@ class FavoritesView(discord.ui.View):
     def _update_action_buttons(self):
         has = self.selected_id is not None
         for item in self.children:
-            if isinstance(item, discord.ui.Button) and item.label in ("\U0001f517 Open", "\U0001f5d1️ Remove"):
+            if isinstance(item, discord.ui.Button) and item.label in (
+                "\U0001f517 Open", "\U0001f5d1️ Remove", "\U0001f3ae Simulate"
+            ):
                 item.disabled = not has
 
     async def _on_select(self, interaction: discord.Interaction) -> None:
@@ -646,7 +648,15 @@ class FavoritesView(discord.ui.View):
 
     @discord.ui.button(label="\U0001f3ae Simulate", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def sim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        from cogs.simulator import SimulatorView
+        initial_state: dict = {}
+        if self.selected_type == "location":
+            initial_state["location_id"] = self.selected_id
+        elif self.selected_type == "tool":
+            initial_state["tool_id"] = self.selected_id
+        view = SimulatorView(self.db, self.user, self.dc, initial_state=initial_state)
+        embed = EmbedBuilder.info("🎣 Simulator", "Select your options and click **🔄 Calculate**.")
+        await interaction.response.send_message(embed=embed, view=view)
 
 
 class HistoryView(discord.ui.View):
@@ -694,9 +704,9 @@ class HistoryView(discord.ui.View):
     async def location_tab(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._switch_tab(interaction, "location")
 
-    @discord.ui.button(label="\U0001f3ae Simulations", style=discord.ButtonStyle.secondary, disabled=True, row=0)
+    @discord.ui.button(label="\U0001f3ae Simulations", style=discord.ButtonStyle.secondary, row=0)
     async def sim_tab(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        await self._switch_tab(interaction, "simulation")
 
     @discord.ui.button(label="\U0001f4ac Commands", style=discord.ButtonStyle.secondary, row=0)
     async def command_tab(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -790,9 +800,20 @@ class SettingsView(discord.ui.View):
     async def notif_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         pass
 
-    @discord.ui.button(label="\U0001f3ae Default Sim Values", style=discord.ButtonStyle.secondary, disabled=True, row=1)
+    @discord.ui.button(label="\U0001f3ae Default Sim Values", style=discord.ButtonStyle.secondary, row=1)
     async def sim_defaults_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
+        user_row = await self.db.get_or_create_user(str(self.member.id))
+        tool = user_row["current_tool"] or "None"
+        bait = user_row["current_bait"] or "None"
+        location = user_row["favorite_location"] or "None"
+        event = user_row["current_event"] or "None"
+        embed = discord.Embed(title="\U0001f3ae Default Sim Values", color=0x5865F2)
+        embed.add_field(name="Tool", value=tool, inline=True)
+        embed.add_field(name="Bait", value=bait, inline=True)
+        embed.add_field(name="Location", value=location, inline=True)
+        embed.add_field(name="Event", value=event, inline=True)
+        embed.set_footer(text="Run /simulate and click \U0001f504 Calculate to auto-update these values.")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class ProfileCog(commands.Cog):
