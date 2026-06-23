@@ -641,6 +641,7 @@ class SimulatorView(discord.ui.View):
         embed = build_statistics_embed(self._last_sim_data, self._current_state(), self.dc)
         stats_view = StatisticsView(self, self._last_sim_data, self.dc)
         await interaction.response.edit_message(embed=embed, view=stats_view)
+        stats_view.message = await interaction.original_response()
 
 
 class PeakHoursView(discord.ui.View):
