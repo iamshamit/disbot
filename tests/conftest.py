@@ -10,7 +10,7 @@ from dankmemer.routes.baits import Bait
 def make_creature(
     id="goldfish",
     name="Goldfish",
-    imageURL="https://example.com/goldfish.png",
+    imageURL="https://cdn.discordapp.com/emojis/1109186607120130049.png",
     rarity="Common",
     boss=False,
     mythical=False,
@@ -20,6 +20,7 @@ def make_creature(
     end_h=6,
     full_day=False,
     variants=None,
+    tools=None,
 ):
     time_data = {"full_day": full_day}
     if not full_day:
@@ -33,6 +34,7 @@ def make_creature(
         "locations": locations or ["loc1"],
         "time": time_data,
         "variants": variants or [],
+        "tools": tools or {},
     })
     return Creature(id=id, name=name, imageURL=imageURL, extra=extra)
 
@@ -40,7 +42,7 @@ def make_creature(
 def make_location(
     id="sunken_ship",
     name="Sunken Ship",
-    imageURL="https://example.com/loc.png",
+    imageURL="https://cdn.discordapp.com/emojis/1157173307263688754.png",
     bannerURL="https://example.com/banner.png",
     thumbnailURL="https://example.com/thumb.png",
     creatures=None,
@@ -50,6 +52,7 @@ def make_location(
     mineChance=5,
     npcs=None,
     rarity_fish=None,
+    loc_type="saltwater",
 ):
     extra = DotDict({
         "bannerURL": bannerURL,
@@ -61,6 +64,7 @@ def make_location(
         "mineChance": mineChance,
         "npcs": npcs or [],
         "days": [],
+        "type": loc_type,
     })
     return Location(
         id=id,

@@ -43,6 +43,17 @@ from utils.formatters import (
 
 _SEP = "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
 
+import re as _re
+
+
+def emoji_from_url(url: str | None) -> discord.PartialEmoji | None:
+    if not url:
+        return None
+    m = _re.search(r'/emojis/(\d+)\.(png|gif)$', url)
+    if not m:
+        return None
+    return discord.PartialEmoji(name='_', id=int(m.group(1)), animated=m.group(2) == 'gif')
+
 
 def build_fish_embed(creature, dank_client) -> discord.Embed:
     extra = creature.extra
