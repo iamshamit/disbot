@@ -119,3 +119,69 @@ def test_creatures_embed_title():
     dc = _make_search_dc()
     embed = build_search_fish_embed([], page=0, total_pages=1, dc=dc, title="🦎 Creatures")
     assert "Creatures" in embed.title
+
+
+# ---------------------------------------------------------------------------
+# build_search_location_embed + SearchLocationView (Task 7)
+# ---------------------------------------------------------------------------
+
+def _make_loc_dc():
+    from unittest.mock import MagicMock
+    loc_sw1 = make_location(id="beach", name="Beach", failChance=5, mineChance=90,
+                             loc_type="saltwater", creatures=["bass", "koi"])
+    loc_sw2 = make_location(id="ocean", name="Ocean", failChance=15, mineChance=70,
+                             loc_type="saltwater", creatures=["bass"])
+    loc_fw = make_location(id="river", name="River", failChance=8, mineChance=60,
+                            loc_type="freshwater", creatures=["trout", "koi", "bass"])
+    dc = MagicMock()
+    dc.location_by_id = {"beach": loc_sw1, "ocean": loc_sw2, "river": loc_fw}
+    return dc
+
+
+def test_build_search_location_embed_shows_all():
+    from cogs.search import build_search_location_embed
+    dc = _make_loc_dc()
+    locs = list(dc.location_by_id.values())
+    embed = build_search_location_embed(locs)
+    desc = embed.description or ""
+    assert "Beach" in desc
+    assert "Ocean" in desc
+    assert "River" in desc
+
+
+def test_build_search_location_embed_zero_results():
+    from cogs.search import build_search_location_embed
+    embed = build_search_location_embed([])
+    assert "No locations" in (embed.description or "")
+
+
+def test_search_location_type_filter_saltwater():
+    from cogs.search import SearchLocationView
+    dc = _make_loc_dc()
+    view = SearchLocationView(dc)
+    view.type_filter = "saltwater"
+    locs = view._filtered_sorted()
+    names = [l.name for l in locs]
+    assert "Beach" in names
+    assert "Ocean" in names
+    assert "River" not in names
+
+
+def test_search_location_sort_fail_asc():
+    from cogs.search import SearchLocationView
+    dc = _make_loc_dc()
+    view = SearchLocationView(dc)
+    view.sort = "fail_asc"
+    locs = view._filtered_sorted()
+    fails = [l.extra.get("failChance") for l in locs]
+    assert fails == sorted(fails)
+
+
+def test_search_location_sort_fish_count_desc():
+    from cogs.search import SearchLocationView
+    dc = _make_loc_dc()
+    view = SearchLocationView(dc)
+    view.sort = "fish_count"
+    locs = view._filtered_sorted()
+    counts = [len(l.extra.get("creatures", [])) for l in locs]
+    assert counts == sorted(counts, reverse=True)
