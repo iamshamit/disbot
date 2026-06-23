@@ -782,3 +782,65 @@ async def test_fish_view_sim_btn_is_enabled_when_db_present():
     sim_btn = next((b for b in view.children if isinstance(b, discord.ui.Button) and "Simulate" in b.label), None)
     assert sim_btn is not None
     assert sim_btn.disabled is False
+
+
+# ---------------------------------------------------------------------------
+# build_fish_embed — TOOLS section (Task 2)
+# ---------------------------------------------------------------------------
+
+def _make_dc_with_tool():
+    from unittest.mock import MagicMock
+    from tests.conftest import make_tool, make_location
+    dc = MagicMock()
+    rod = make_tool(id="fishing-rod", name="Fishing Rod",
+                    imageURL="https://cdn.discordapp.com/emojis/1162188819832000572.png")
+    harpoon = make_tool(id="harpoon", name="Harpoon",
+                        imageURL="https://cdn.discordapp.com/emojis/1162188817135046757.png")
+    loc_low = make_location(id="loc_low", name="Easy Beach", failChance=5, loc_type="saltwater")
+    loc_high = make_location(id="loc_high", name="Hard Ocean", failChance=20, loc_type="saltwater")
+    dc.tool_by_id = {"fishing-rod": rod, "harpoon": harpoon}
+    dc.location_by_id = {"loc_low": loc_low, "loc_high": loc_high}
+    return dc
+
+
+def test_fish_embed_tools_section_present():
+    from utils.embeds import build_fish_embed
+    dc = _make_dc_with_tool()
+    c = make_creature(
+        tools={"fishing-rod": {"min": 1, "max": 1}, "harpoon": {"min": 1, "max": 3}},
+        locations=["loc_low", "loc_high"],
+    )
+    embed = build_fish_embed(c, dc)
+    assert "TOOLS" in (embed.description or "")
+    assert "Fishing Rod" in (embed.description or "")
+    assert "Harpoon" in (embed.description or "")
+
+
+def test_fish_embed_best_tool_marked():
+    from utils.embeds import build_fish_embed
+    dc = _make_dc_with_tool()
+    c = make_creature(
+        tools={"fishing-rod": {"min": 1, "max": 1}, "harpoon": {"min": 1, "max": 3}},
+        locations=["loc_low"],
+    )
+    embed = build_fish_embed(c, dc)
+    desc = embed.description or ""
+    # Harpoon has max=3, Fishing Rod has max=1 — only Harpoon should be marked Best
+    harpoon_line = next((l for l in desc.splitlines() if "Harpoon" in l), "")
+    rod_line = next((l for l in desc.splitlines() if "Fishing Rod" in l), "")
+    assert "⭐" in harpoon_line
+    assert "⭐" not in rod_line
+
+
+def test_fish_embed_best_location_lowest_fail():
+    from utils.embeds import build_fish_embed
+    dc = _make_dc_with_tool()
+    c = make_creature(
+        tools={"fishing-rod": {"min": 1, "max": 1}},
+        locations=["loc_low", "loc_high"],
+    )
+    embed = build_fish_embed(c, dc)
+    desc = embed.description or ""
+    # Best Location = loc_low (failChance=5), not loc_high (failChance=20)
+    assert "Easy Beach" in desc
+    assert "Best Location" in desc

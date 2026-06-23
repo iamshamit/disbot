@@ -114,6 +114,37 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
                 parts.append(f"\u2728 {v}")
         lines.append("  \u00b7  ".join(parts))
 
+    # Tools section
+    tools_data = extra.get("tools") or {}
+    if tools_data and dank_client.tool_by_id:
+        best_max = max((v.get("max", 0) for v in tools_data.values()), default=0)
+        tool_lines = []
+        for tid, catch in tools_data.items():
+            t = dank_client.tool_by_id.get(tid)
+            if t is None:
+                continue
+            lo, hi = catch.get("min", 0), catch.get("max", 0)
+            star = "  \u2b50 Best" if hi == best_max and best_max > 0 else ""
+            tool_lines.append(f"**{t.name}** \u2014 {lo}\u2013{hi}{star}")
+        if tool_lines:
+            lines += ["", _SEP, f"**\U0001f527 TOOLS  ({len(tool_lines)})**"]
+            lines.extend(tool_lines)
+
+    # Best Location
+    loc_ids = extra.get("locations") or []
+    best_loc = None
+    best_fail = None
+    for lid in loc_ids:
+        loc = dank_client.location_by_id.get(lid)
+        if loc is None:
+            continue
+        fail = loc.extra.get("failChance", 100) if hasattr(loc.extra, "get") else 100
+        if best_fail is None or fail < best_fail or (fail == best_fail and loc.name < best_loc.name):
+            best_fail = fail
+            best_loc = loc
+    if best_loc is not None:
+        lines += ["", f"\U0001f4cd **Best Location:** {best_loc.name}  (fail: {best_fail}%)"]
+
     lines += ["", _SEP]
     embed.description = "\n".join(lines)[:4096]
     embed.set_footer(text=f"Internal ID: {creature.id}")
