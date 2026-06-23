@@ -78,7 +78,7 @@ Full embed for a single event:
 - Footer: "Active" if matches profile `current_event`, else empty
 
 Buttons:
-- **⭐ Set as Current** — calls `db.update_user(discord_id, current_event=event.id)`, relabels to "✅ Set" and disables itself after click
+- **⭐ Set as Current** — calls `db.update_user(discord_id, current_event=event.name)`, relabels to "✅ Set" and disables itself after click
 - **🗑️ Delete**
 
 The "Set as Current" button requires the invoker's Discord ID; it updates only their own profile.
