@@ -84,7 +84,7 @@ def make_user_row(**kw):
 # --- SimulatorView ---
 
 @pytest.mark.asyncio
-async def test_simulator_view_has_4_selects_and_4_buttons():
+async def test_simulator_view_has_4_selects_and_5_buttons():
     from cogs.simulator import SimulatorView
     db = MagicMock()
     dc = make_dc()
@@ -93,13 +93,14 @@ async def test_simulator_view_has_4_selects_and_4_buttons():
     selects = [c for c in view.children if isinstance(c, discord.ui.Select)]
     buttons = [c for c in view.children if isinstance(c, discord.ui.Button)]
     assert len(selects) == 4
-    assert len(buttons) == 4
+    assert len(buttons) == 5
     btn_labels = [b.label for b in buttons]
     assert "🔄 Calculate" in btn_labels
     assert "👥 Skills" in btn_labels
     assert "⚙️ Extras" in btn_labels
     assert "📈 Peak Hours" not in btn_labels
     assert "🗑️ Delete" in btn_labels
+    assert "📊 Statistics" in btn_labels
 
 
 @pytest.mark.asyncio
@@ -427,3 +428,75 @@ async def test_simulator_view_has_no_peak_hours_set_time_in_extras():
     extras_view = ExtrasView(sim_view, EmbedBuilder.info("Test", ""))
     extras_btn_labels = [b.label for b in extras_view.children if isinstance(b, discord.ui.Button)]
     assert "🕐 Set Time" in extras_btn_labels
+
+
+# --- Statistics embed ---
+
+def test_build_statistics_embed_shows_fail_npc_net():
+    from cogs.simulator import build_statistics_embed
+    dc = make_dc()
+    dc.location_by_id["river"].extra = MagicMock()
+    dc.location_by_id["river"].extra.get = lambda k, d=None: 95 if k == "mineChance" else d
+    sim_data = {"failChance": 12.0, "npcChance": 3.0, "table": [], "variants": {}}
+    state = {"location_id": "river", "hour": 14}
+    embed = build_statistics_embed(sim_data, state, dc)
+    field_names = [f.name for f in embed.fields]
+    assert "❌ Fail" in field_names
+    assert "👤 NPC" in field_names
+    assert "🎣 Net Catch" in field_names
+
+
+def test_build_statistics_embed_mine_chance():
+    from cogs.simulator import build_statistics_embed
+    dc = make_dc()
+    dc.location_by_id["river"].extra = MagicMock()
+    dc.location_by_id["river"].extra.get = lambda k, d=None: 95 if k == "mineChance" else d
+    sim_data = {"failChance": 12.0, "npcChance": 3.0, "table": [], "variants": {}}
+    state = {"location_id": "river", "hour": 14}
+    embed = build_statistics_embed(sim_data, state, dc)
+    mine_field = next(f for f in embed.fields if "Mine" in f.name)
+    assert "95" in mine_field.value
+
+
+def test_build_statistics_embed_rarity_breakdown():
+    from cogs.simulator import build_statistics_embed
+    dc = make_dc()
+    dc.location_by_id["river"].extra = MagicMock()
+    dc.location_by_id["river"].extra.get = lambda k, d=None: 0 if k == "mineChance" else d
+    dc.fish_by_id["bass"].extra = {"rarity": "Rare", "boss": False}
+    sim_data = {
+        "failChance": 10.0, "npcChance": 2.0,
+        "table": [{"chance": 5.0, "value": {"type": "fish-creature", "creatureID": "bass"}}],
+        "variants": {},
+    }
+    state = {"location_id": None, "hour": 0}
+    embed = build_statistics_embed(sim_data, state, dc)
+    breakdown_field = next((f for f in embed.fields if "Rarity" in f.name), None)
+    assert breakdown_field is not None
+    assert "Rare" in breakdown_field.value
+
+
+@pytest.mark.asyncio
+async def test_statistics_btn_enabled_after_calculate(monkeypatch):
+    from cogs.simulator import SimulatorView
+    db = MagicMock()
+    db.get_or_create_user = AsyncMock(return_value=make_user_row())
+    db.add_history = AsyncMock()
+    db.update_user = AsyncMock()
+    dc = make_dc()
+    view = SimulatorView(db, make_member(), dc)
+
+    stats_btn = next(
+        item for item in view.children
+        if isinstance(item, discord.ui.Button) and "Statistics" in item.label
+    )
+    assert stats_btn.disabled is True
+
+    fake_data = {"failChance": 10.0, "npcChance": 2.0, "table": [], "variants": {}}
+    monkeypatch.setattr("cogs.simulator.local_simulate", lambda *a, **kw: fake_data)
+
+    inter = make_interaction()
+    await view.calculate_btn.callback(inter)
+
+    assert stats_btn.disabled is False
+    assert view._last_sim_data == fake_data

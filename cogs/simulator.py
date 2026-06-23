@@ -133,6 +133,70 @@ def build_fish_peak_embed(fish_id: str, results: list, dc) -> discord.Embed:
     return embed
 
 
+_STATS_RARITY_ORDER = [
+    "Absurdly Common", "Very Common", "Common", "Regular",
+    "Rare", "Very Rare", "Absurdly Rare",
+]
+
+
+def build_statistics_embed(sim_data: dict, state: dict, dc) -> discord.Embed:
+    fail = sim_data.get("failChance", 0.0)
+    npc = sim_data.get("npcChance", 0.0)
+    net = max(0.0, 100.0 - fail - npc)
+
+    loc_id = state.get("location_id")
+    mine_str = "—"
+    if loc_id and loc_id in dc.location_by_id:
+        mine_val = dc.location_by_id[loc_id].extra.get("mineChance", None)
+        if mine_val is not None:
+            mine_str = f"{mine_val}%"
+
+    rarity_totals: dict[str, float] = {}
+    boss_total = 0.0
+    for entry in sim_data.get("table", []):
+        chance = entry.get("chance", 0.0)
+        val = entry.get("value", {})
+        if val.get("type") == "fish-creature":
+            cid = val.get("creatureID", "")
+            fish = dc.fish_by_id.get(cid)
+            if fish:
+                rarity = fish.extra.get("rarity", "Unknown") if hasattr(fish.extra, "get") else "Unknown"
+                rarity_totals[rarity] = rarity_totals.get(rarity, 0.0) + chance
+                if (fish.extra.get("boss") if hasattr(fish.extra, "get") else False):
+                    boss_total += chance
+
+    variant_lines = []
+    for cid, var_list in sim_data.get("variants", {}).items():
+        name = dc.fish_by_id[cid].name if cid in dc.fish_by_id else cid
+        total_var = sum(v.get("chance", 0.0) for v in var_list if v.get("chance", 0.0) > 0)
+        if total_var > 0:
+            variant_lines.append(f"✨ **{name}** — {total_var:.1f}%")
+
+    embed = discord.Embed(title="📊 Statistics", color=0x5865F2)
+    embed.set_author(name="🎣 Simulator")
+    embed.add_field(name="❌ Fail", value=f"{fail:.1f}%", inline=True)
+    embed.add_field(name="👤 NPC", value=f"{npc:.1f}%", inline=True)
+    embed.add_field(name="🎣 Net Catch", value=f"{net:.1f}%", inline=True)
+    embed.add_field(name="⛏️ Mine Chance", value=mine_str, inline=True)
+    if boss_total > 0:
+        embed.add_field(name="👾 Boss", value=f"{boss_total:.1f}%", inline=True)
+
+    rarity_lines = [
+        f"**{r}**: {rarity_totals[r]:.1f}%"
+        for r in _STATS_RARITY_ORDER
+        if r in rarity_totals
+    ]
+    if rarity_lines:
+        embed.add_field(name="📊 Rarity Breakdown", value="\n".join(rarity_lines), inline=False)
+    if variant_lines:
+        embed.add_field(name="✨ Variants", value="\n".join(variant_lines[:10]), inline=False)
+
+    loc_name = dc.location_by_id[loc_id].name if loc_id and loc_id in dc.location_by_id else "No location"
+    hour = state.get("hour", 0)
+    embed.set_footer(text=f"{loc_name} · {hour:02d}:00 UTC")
+    return embed
+
+
 # SkillsPickerView  (defined here; imported by cogs/profile.py)
 
 class SkillsPickerView(discord.ui.View):
@@ -327,6 +391,32 @@ class ExtrasView(discord.ui.View):
         await interaction.edit_original_response(embed=embed, view=self.parent)
 
 
+class StatisticsView(discord.ui.View):
+    def __init__(self, sim_view: "SimulatorView", sim_data: dict, dc):
+        super().__init__(timeout=300)
+        self.sim_view = sim_view
+        self.sim_data = sim_data
+        self.dc = dc
+        self.message: discord.Message | None = None
+
+    async def on_timeout(self) -> None:
+        for item in self.children:
+            item.disabled = True  # type: ignore[attr-defined]
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception:
+                pass
+
+    @discord.ui.button(label="← Back", style=discord.ButtonStyle.primary, row=0)
+    async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=self.sim_view._last_embed, view=self.sim_view)
+
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=0)
+    async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+
+
 class SimulatorView(discord.ui.View):
     def __init__(self, db, member, dc, initial_state: dict | None = None):
         super().__init__(timeout=300)
@@ -342,6 +432,7 @@ class SimulatorView(discord.ui.View):
         self._invasion: bool = False
         self._loc_winner: bool = False
         self._last_embed: discord.Embed | None = None
+        self._last_sim_data: dict | None = None
         if initial_state:
             self._loc_id = initial_state.get("location_id")
             self._tool_id = initial_state.get("tool_id")
@@ -496,6 +587,8 @@ class SimulatorView(discord.ui.View):
             return
         embed = build_sim_results_embed(data, self._current_state(), self.dc)
         self._last_embed = embed
+        self._last_sim_data = data
+        self.statistics_btn.disabled = False
         await interaction.edit_original_response(embed=embed, view=self)
         await self.db.add_history(
             str(self.member.id), "simulation",
@@ -542,6 +635,12 @@ class SimulatorView(discord.ui.View):
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=4)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.message.delete()
+
+    @discord.ui.button(label="📊 Statistics", style=discord.ButtonStyle.secondary, disabled=True, row=4)
+    async def statistics_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = build_statistics_embed(self._last_sim_data, self._current_state(), self.dc)
+        stats_view = StatisticsView(self, self._last_sim_data, self.dc)
+        await interaction.response.edit_message(embed=embed, view=stats_view)
 
 
 class PeakHoursView(discord.ui.View):
