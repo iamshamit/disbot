@@ -502,6 +502,16 @@ class SimulatorView(discord.ui.View):
             self._loc_id or "unknown",
             data=_json.dumps(data),
         )
+        try:
+            await self.db.update_user(
+                str(self.member.id),
+                current_tool=self.dc.tool_by_id[self._tool_id].name if self._tool_id and self._tool_id in self.dc.tool_by_id else None,
+                current_bait=self.dc.bait_by_id[self._bait_id].name if self._bait_id and self._bait_id in self.dc.bait_by_id else None,
+                favorite_location=self.dc.location_by_id[self._loc_id].name if self._loc_id and self._loc_id in self.dc.location_by_id else None,
+                current_event=self.dc.event_by_id[self._event_id].name if self._event_id and self._event_id in self.dc.event_by_id else None,
+            )
+        except Exception:
+            pass
 
     @discord.ui.button(label="👥 Skills", style=discord.ButtonStyle.secondary, row=4)
     async def skills_btn(self, interaction: discord.Interaction, button: discord.ui.Button):

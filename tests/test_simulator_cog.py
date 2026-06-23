@@ -31,15 +31,35 @@ def make_interaction():
 
 def make_dc():
     dc = MagicMock()
-    dc.location_by_id = {"river": MagicMock(id="river", name="Wily River")}
-    dc.location_by_name = {"wily river": dc.location_by_id["river"]}
-    dc.tool_by_id = {"rod": MagicMock(id="rod", name="Basic Rod")}
-    dc.tool_by_name = {"basic rod": dc.tool_by_id["rod"]}
-    dc.bait_by_id = {"worm": MagicMock(id="worm", name="Worm")}
-    dc.bait_by_name = {"worm": dc.bait_by_id["worm"]}
-    dc.event_by_id = {"2xtokens": MagicMock(id="2xtokens", name="Token Clone")}
-    dc.event_by_name = {"token clone": dc.event_by_id["2xtokens"]}
-    dc.fish_by_id = {"bass": MagicMock(id="bass", name="Bass")}
+    location_river = MagicMock()
+    location_river.id = "river"
+    location_river.name = "Wily River"
+    dc.location_by_id = {"river": location_river}
+    dc.location_by_name = {"wily river": location_river}
+
+    tool_rod = MagicMock()
+    tool_rod.id = "rod"
+    tool_rod.name = "Basic Rod"
+    dc.tool_by_id = {"rod": tool_rod}
+    dc.tool_by_name = {"basic rod": tool_rod}
+
+    bait_worm = MagicMock()
+    bait_worm.id = "worm"
+    bait_worm.name = "Worm"
+    dc.bait_by_id = {"worm": bait_worm}
+    dc.bait_by_name = {"worm": bait_worm}
+
+    event_2xtokens = MagicMock()
+    event_2xtokens.id = "2xtokens"
+    event_2xtokens.name = "Token Clone"
+    dc.event_by_id = {"2xtokens": event_2xtokens}
+    dc.event_by_name = {"token clone": event_2xtokens}
+
+    fish_bass = MagicMock()
+    fish_bass.id = "bass"
+    fish_bass.name = "Bass"
+    dc.fish_by_id = {"bass": fish_bass}
+
     dc.skill_categories = {
         "Economy": [{"base": "haggler", "name": "Haggler", "max_tier": 3}],
     }
@@ -357,6 +377,37 @@ async def test_peak_hours_view_show_btn_sweeps_24_hours(monkeypatch):
     view._fish_id = "bass"
     await view.show_btn.callback(make_interaction())
     assert sorted(hours_seen) == list(range(24))
+
+
+# --- auto-save ---
+
+@pytest.mark.asyncio
+async def test_autosave_calls_update_user_with_names(monkeypatch):
+    from cogs.simulator import SimulatorView
+    db = MagicMock()
+    db.get_or_create_user = AsyncMock(return_value=make_user_row())
+    db.add_history = AsyncMock()
+    db.update_user = AsyncMock()
+    dc = make_dc()
+    view = SimulatorView(db, make_member(), dc)
+    view._loc_id = "river"
+    view._tool_id = "rod"
+    view._bait_id = "worm"
+    view._event_id = "2xtokens"
+
+    fake_data = {"failChance": 10.0, "npcChance": 2.0, "table": [], "variants": {}}
+    monkeypatch.setattr("cogs.simulator.local_simulate", lambda *a, **kw: fake_data)
+
+    inter = make_interaction()
+    await view.calculate_btn.callback(inter)
+
+    db.update_user.assert_called_once_with(
+        "123",
+        current_tool="Basic Rod",
+        current_bait="Worm",
+        favorite_location="Wily River",
+        current_event="Token Clone",
+    )
 
 
 # --- button layout ---
