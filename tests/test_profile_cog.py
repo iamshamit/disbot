@@ -751,3 +751,15 @@ async def test_import_rejects_invalid_json():
     inter.response.send_message.assert_awaited_once()
     call_kwargs = inter.response.send_message.call_args
     assert call_kwargs.kwargs.get("ephemeral") is True
+
+@pytest.mark.asyncio
+async def test_import_rejects_wrong_version():
+    from cogs.profile import ImportModal
+    db = MagicMock()
+    member = make_member()
+    modal = ImportModal(db, member, MagicMock())
+    modal.json_input._value = _json.dumps({"version": 2, "profile": {}, "favorites": []})
+    inter = make_interaction()
+    await modal.on_submit(inter)
+    inter.response.send_message.assert_awaited_once()
+    assert inter.response.send_message.call_args.kwargs.get("ephemeral") is True
