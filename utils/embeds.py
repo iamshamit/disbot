@@ -406,7 +406,7 @@ def build_locations_list_embed(
     return embed
 
 
-def build_tool_embed(tool) -> discord.Embed:
+def build_tool_embed(tool, dc=None) -> discord.Embed:
     extra = tool.extra
     embed = discord.Embed(title=tool.name, color=0xff9500)
     embed.set_author(name="\U0001f527 Tool")
@@ -435,6 +435,29 @@ def build_tool_embed(tool) -> discord.Embed:
     bait_support = "\u2705" if extra.get("baits") else "\u274c"
     usage = extra.get("usage", "?")
     lines += ["", _SEP, f"\U0001fab1 Bait Support: {bait_support}   \u00b7   \U0001f4ca Usage: {usage}", _SEP]
+
+    # Supported Fish section (only when dc provided)
+    if dc is not None:
+        supported = [
+            (f, f.extra.get("tools", {}).get(tool.id, {}))
+            for f in dc.fish_by_id.values()
+            if tool.id in f.extra.get("tools", {})
+        ]
+        if supported:
+            supported.sort(key=lambda fc: fc[0].name.lower())
+            best_fish = max(supported, key=lambda fc: rarity_rank(fc[0].extra.get("rarity", "Common")))[0]
+            best_rarity = best_fish.extra.get("rarity", "Common")
+            best_catch = supported[[fc[0].id for fc in supported].index(best_fish.id)][1]
+            bc_lo, bc_hi = best_catch.get("min", 0), best_catch.get("max", 0)
+            lines += ["", _SEP, f"**\ud83d\udc1f SUPPORTED FISH  ({len(supported)})**"]
+            lines.append(
+                f"Best: **{best_fish.name}** ({best_rarity}) \u2014 catches {bc_lo}\u2013{bc_hi}"
+            )
+            for fish, catch in supported[:12]:
+                lo, hi = catch.get("min", 0), catch.get("max", 0)
+                lines.append(f"**{fish.name}** \u2014 {lo}\u2013{hi}")
+            if len(supported) > 12:
+                lines.append(f"\u2026 and {len(supported) - 12} more")
 
     embed.description = "\n".join(lines)[:4096]
     embed.set_footer(text=f"Internal ID: {tool.id}")

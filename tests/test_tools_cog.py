@@ -455,3 +455,51 @@ async def test_tool_command_writes_history():
     interaction.user.id = "123"
     await cog.tool.callback(cog, interaction, name="Fishing Rod")
     db.add_history.assert_called_once_with("123", "tool", "rod")
+
+
+# ---------------------------------------------------------------------------
+# build_tool_embed — SUPPORTED FISH section (Task 3)
+# ---------------------------------------------------------------------------
+
+def _make_dc_with_fish():
+    from unittest.mock import MagicMock
+    from tests.conftest import make_creature
+    dc = MagicMock()
+    bass = make_creature(id="bass", name="Bass", rarity="Common",
+                         tools={"rod": {"min": 1, "max": 2}})
+    koi = make_creature(id="koi", name="Koi", rarity="Very Rare",
+                        tools={"rod": {"min": 1, "max": 1}})
+    dc.fish_by_id = {"bass": bass, "koi": koi}
+    return dc
+
+
+def test_tool_embed_fish_section_present():
+    from utils.embeds import build_tool_embed
+    from tests.conftest import make_tool
+    t = make_tool(id="rod", name="Fishing Rod")
+    dc = _make_dc_with_fish()
+    embed = build_tool_embed(t, dc)
+    assert "SUPPORTED FISH" in (embed.description or "")
+    assert "Bass" in (embed.description or "")
+    assert "Koi" in (embed.description or "")
+
+
+def test_tool_embed_best_fish_is_highest_rarity():
+    from utils.embeds import build_tool_embed
+    from tests.conftest import make_tool
+    t = make_tool(id="rod", name="Fishing Rod")
+    dc = _make_dc_with_fish()
+    embed = build_tool_embed(t, dc)
+    desc = embed.description or ""
+    # Koi is Very Rare (rank 3), Bass is Common (rank 0) — Koi should be Best
+    assert "Best" in desc
+    best_line = next((l for l in desc.splitlines() if "Best" in l), "")
+    assert "Koi" in best_line
+
+
+def test_tool_embed_no_dc_no_fish_section():
+    from utils.embeds import build_tool_embed
+    from tests.conftest import make_tool
+    t = make_tool(id="rod", name="Fishing Rod")
+    embed = build_tool_embed(t)
+    assert "SUPPORTED FISH" not in (embed.description or "")

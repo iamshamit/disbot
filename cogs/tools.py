@@ -158,7 +158,7 @@ class ToolsCog(commands.Cog):
             except Exception:
                 pass
         view = ToolView(t, self.bot.dank_client, db=self.bot.db, user_id=user_id, is_faved=is_faved)
-        embed = build_tool_embed(t)
+        embed = build_tool_embed(t, self.bot.dank_client)
         await interaction.response.send_message(embed=embed, view=view)
         view.message = await interaction.original_response()
 
