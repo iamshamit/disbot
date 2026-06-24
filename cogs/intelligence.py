@@ -4,7 +4,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from fishing_engine import creature_eligible, RARITY_WEIGHTS
 from utils.embeds import EmbedBuilder
 from utils.optimizer import best_setups, score_setup, session_windows
 
