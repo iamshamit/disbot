@@ -47,7 +47,7 @@ import re as _re
 
 
 def emoji_from_url(url: str | None) -> discord.PartialEmoji | None:
-    if not url:
+    if not url or not isinstance(url, str):
         return None
     m = _re.search(r'/emojis/(\d+)\.(png|gif)$', url)
     if not m:

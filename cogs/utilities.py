@@ -6,7 +6,7 @@ from discord.ext import commands
 
 from fishing_engine import creature_eligible, RARITY_WEIGHTS
 from utils.optimizer import best_setups, score_setup
-from utils.embeds import EmbedBuilder
+from utils.embeds import EmbedBuilder, emoji_from_url
 
 _PRELOAD_MSG = "⏳ Data is still loading, please try again in a moment."
 
@@ -312,7 +312,8 @@ class TimeView(discord.ui.View):
         self._loc_id: str | None = None
         self.message: discord.Message | None = None
         loc_opts = [
-            discord.SelectOption(label=loc.name, value=loc.id)
+            discord.SelectOption(label=loc.name, value=loc.id,
+                                 emoji=emoji_from_url(getattr(loc, "imageURL", None)))
             for loc in sorted(dc.location_by_id.values(), key=lambda l: l.name)
         ]
         self._loc_sel = discord.ui.Select(

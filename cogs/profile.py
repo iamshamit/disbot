@@ -6,7 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from utils.embeds import EmbedBuilder, build_profile_embed
+from utils.embeds import EmbedBuilder, build_profile_embed, emoji_from_url
 
 _UNSET = object()
 
@@ -125,7 +125,8 @@ class EditSetupView(discord.ui.View):
         self._pending_rod: str | None = None
 
         tool_opts = [discord.SelectOption(label="— No Tool —", value="__clear__")] + [
-            discord.SelectOption(label=t.name, value=t.id)
+            discord.SelectOption(label=t.name, value=t.id,
+                                 emoji=emoji_from_url(getattr(t, "imageURL", None)))
             for t in sorted(dc.tool_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._tool_sel = discord.ui.Select(
@@ -135,7 +136,8 @@ class EditSetupView(discord.ui.View):
         self.add_item(self._tool_sel)
 
         bait_opts = [discord.SelectOption(label="— No Bait —", value="__clear__")] + [
-            discord.SelectOption(label=b.name, value=b.id)
+            discord.SelectOption(label=b.name, value=b.id,
+                                 emoji=emoji_from_url(getattr(b, "imageURL", None)))
             for b in sorted(dc.bait_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._bait_sel = discord.ui.Select(
@@ -254,7 +256,8 @@ class EditEnvView(discord.ui.View):
         self._pending_weather = _UNSET
 
         event_opts = [discord.SelectOption(label="— No Event —", value="__clear__")] + [
-            discord.SelectOption(label=e.name, value=e.id)
+            discord.SelectOption(label=e.name, value=e.id,
+                                 emoji=emoji_from_url(getattr(e, "imageURL", None)))
             for e in sorted(dc.event_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._event_sel = discord.ui.Select(
@@ -311,7 +314,8 @@ class EditFavsView(discord.ui.View):
         NONE_OPT = discord.SelectOption(label="— None —", value="__clear__")
 
         loc_opts = [NONE_OPT] + [
-            discord.SelectOption(label=l.name, value=l.id)
+            discord.SelectOption(label=l.name, value=l.id,
+                                 emoji=emoji_from_url(getattr(l, "imageURL", None)))
             for l in sorted(dc.location_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._loc_sel = discord.ui.Select(
@@ -321,7 +325,8 @@ class EditFavsView(discord.ui.View):
         self.add_item(self._loc_sel)
 
         tool_opts = [NONE_OPT] + [
-            discord.SelectOption(label=t.name, value=t.id)
+            discord.SelectOption(label=t.name, value=t.id,
+                                 emoji=emoji_from_url(getattr(t, "imageURL", None)))
             for t in sorted(dc.tool_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._tool_sel = discord.ui.Select(
@@ -331,7 +336,8 @@ class EditFavsView(discord.ui.View):
         self.add_item(self._tool_sel)
 
         bait_opts = [NONE_OPT] + [
-            discord.SelectOption(label=b.name, value=b.id)
+            discord.SelectOption(label=b.name, value=b.id,
+                                 emoji=emoji_from_url(getattr(b, "imageURL", None)))
             for b in sorted(dc.bait_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._bait_sel = discord.ui.Select(
