@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from fishing_engine import creature_eligible, RARITY_WEIGHTS
+from utils.optimizer import best_setups, score_setup
 from utils.embeds import EmbedBuilder
 
 _PRELOAD_MSG = "⏳ Data is still loading, please try again in a moment."
@@ -242,6 +243,48 @@ def _build_today_embed(dc, db_row, hour: int) -> discord.Embed:
         value="\n".join(f"{name} — {count} fish" for name, count in loc_counts[:3]),
         inline=False,
     )
+
+    # --- Best Catch Right Now ---
+    top_setups = best_setups(dc, hour, limit=1)
+    if top_setups:
+        top = top_setups[0]
+        eligible = [
+            f for f in dc.fish_by_id.values()
+            if creature_eligible(f, top["location"].id, top["tool"].id, hour, bosses=False, ignore_time=False)
+        ]
+        best_fish = max(
+            eligible,
+            key=lambda f: RARITY_WEIGHTS.get(f.extra.get("rarity", ""), 0.0),
+            default=None,
+        )
+        if best_fish:
+            rarity = best_fish.extra.get("rarity", "?")
+            best_catch_value = f"**{best_fish.name}** ({rarity})  ·  📍 {top['location'].name}  ·  🎣 {top['tool'].name}"
+        else:
+            best_catch_value = "Nothing catchable right now."
+    else:
+        best_catch_value = "Nothing catchable right now."
+    embed.add_field(name="🏆 Best Catch Right Now", value=best_catch_value, inline=False)
+
+    # --- Your Setup ---
+    current_tool_id = db_row.get("current_tool") if db_row else None
+    current_bait_id = db_row.get("current_bait") if db_row else None
+    if current_tool_id:
+        best_loc = max(
+            dc.location_by_id.values(),
+            key=lambda loc: score_setup(dc, current_tool_id, loc.id, hour),
+            default=None,
+        )
+        tool = dc.tool_by_id.get(current_tool_id)
+        bait = dc.bait_by_id.get(current_bait_id) if current_bait_id else None
+        tool_label = tool.name if tool else current_tool_id
+        bait_label = (bait.name if bait else current_bait_id) if current_bait_id else "—"
+        loc_label = best_loc.name if best_loc else "—"
+        your_setup_value = f"Tool: **{tool_label}**  ·  Bait: **{bait_label}**\nBest location right now: **{loc_label}**"
+    else:
+        your_setup_value = "Not configured — use `/profile` to set your gear"
+    embed.add_field(name="🎣 Your Setup", value=your_setup_value, inline=False)
+
     upcoming_lines = []
     for delta in range(1, 4):
         fhour = (hour + delta) % 24

@@ -206,3 +206,51 @@ def test_today_active_event_not_in_dc():
     active_field = next((f for f in embed.fields if f.name == "Active Event"), None)
     assert active_field is not None
     assert "None set — use `/event` to set one" in active_field.value
+
+
+def _make_dc_for_optimizer():
+    """dc where score_setup returns non-zero — fish locations match location_by_id keys."""
+    from unittest.mock import MagicMock
+    fish = [_make_fish("bass", rarity="Common", locations=["river"], full_day=True)]
+    locs = [_make_location("river")]
+    evs = [_make_event("2xtokens", "Token Cloning")]
+    rod = MagicMock()
+    rod.id = "fishing-rod"
+    rod.name = "Fishing Rod"
+    dc = MagicMock()
+    dc.fish_by_id = {"bass": fish[0]}
+    dc.location_by_id = {"river": locs[0]}
+    dc.event_by_id = {e.id: e for e in evs}
+    dc.event_by_name = {e.name.lower(): e for e in evs}
+    dc.tool_by_id = {"fishing-rod": rod}
+    dc.bait_by_id = {}
+    return dc
+
+
+def test_today_embed_best_catch_field_present():
+    from cogs.utilities import _build_today_embed
+    dc = _make_dc_for_optimizer()
+    db_row = {"current_event": None, "current_tool": None, "current_bait": None}
+    embed = _build_today_embed(dc, db_row, hour=3)
+    field_names = [f.name for f in embed.fields]
+    assert any("Best Catch" in n for n in field_names)
+
+
+def test_today_embed_your_setup_with_tool():
+    from cogs.utilities import _build_today_embed
+    dc = _make_dc_for_optimizer()
+    db_row = {"current_event": None, "current_tool": "fishing-rod", "current_bait": None}
+    embed = _build_today_embed(dc, db_row, hour=3)
+    setup_field = next((f for f in embed.fields if "Your Setup" in f.name), None)
+    assert setup_field is not None
+    assert "Fishing Rod" in setup_field.value
+
+
+def test_today_embed_your_setup_no_tool():
+    from cogs.utilities import _build_today_embed
+    dc = _make_dc_for_optimizer()
+    db_row = {"current_event": None, "current_tool": None, "current_bait": None}
+    embed = _build_today_embed(dc, db_row, hour=3)
+    setup_field = next((f for f in embed.fields if "Your Setup" in f.name), None)
+    assert setup_field is not None
+    assert "profile" in setup_field.value.lower()
