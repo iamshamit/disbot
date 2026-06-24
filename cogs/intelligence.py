@@ -165,8 +165,53 @@ class IntelligenceCog(commands.Cog):
         location: str | None = None,
         hours: app_commands.Range[int, 1, 6] = 3,
     ):
-        # Task 3 implements this body
-        await interaction.response.send_message(embed=discord.Embed(title="Coming soon"))
+        dc = self.bot.dank_client
+        if not dc or not dc.fish_by_id:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Loading", _PRELOAD_GUARD_MSG), ephemeral=True
+            )
+            return
+        hour = _utc_hour()
+        if location:
+            loc_obj = dc.location_by_id.get(location) or next(
+                (l for l in dc.location_by_id.values() if l.name.lower() == location.lower()),
+                None,
+            )
+            if loc_obj is None:
+                await interaction.response.send_message(
+                    embed=EmbedBuilder.error("Not found", f"No location named **{location}** found."),
+                    ephemeral=True,
+                )
+                return
+        else:
+            top = best_setups(dc, hour, limit=1)
+            if not top:
+                await interaction.response.send_message(
+                    embed=EmbedBuilder.error("No data", "No fish catchable right now."), ephemeral=True
+                )
+                return
+            loc_obj = top[0]["location"]
+        windows = session_windows(dc, loc_obj.id, hour, hours)
+        if not any(w["fish_ids"] for w in windows):
+            embed = discord.Embed(
+                title=f"🗓️ Session Plan — {loc_obj.name}",
+                description=f"No fish available at **{loc_obj.name}** during this window.",
+                color=0x5865F2,
+            )
+            await interaction.response.send_message(embed=embed)
+            return
+        user_tool_id = None
+        user_bait_id = None
+        if self.bot.db:
+            try:
+                row = await self.bot.db.get_or_create_user(str(interaction.user.id))
+                user_tool_id = row["current_tool"]
+                user_bait_id = row["current_bait"]
+            except Exception:
+                pass
+        await interaction.response.send_message(
+            embed=_build_planner_embed(loc_obj, windows, dc, user_tool_id, user_bait_id)
+        )
 
     @planner.autocomplete("location")
     async def planner_location_autocomplete(self, interaction: discord.Interaction, current: str):
