@@ -17,6 +17,10 @@ RARITY_WEIGHTS = {
     "Absurdly Rare": 0.075,
 }
 
+# All boss fish are Absurdly Rare but measured at ~7.7× the non-boss AR weight.
+# Derived: W_boss/W_sardine = 0.0311 → 18.5 × 0.0311 ≈ 0.576
+_BOSS_WEIGHT = 0.576
+
 # npcChance per tool (sampled, exact). Default 0.50 for unlisted tools.
 TOOL_NPC_CHANCE = {
     "fishing-rod": 0.575,
@@ -109,7 +113,10 @@ def _eligible_weight_and_list(dc, location_id, tool_id, hour, *, bosses, ignore_
     for creature in dc.fish_by_id.values():
         if creature_eligible(creature, location_id, tool_id, hour,
                              bosses=bosses, ignore_time=ignore_time):
-            w = RARITY_WEIGHTS.get(_get(creature.extra, "rarity"), 0.0)
+            if _get(creature.extra, "boss", False):
+                w = _BOSS_WEIGHT
+            else:
+                w = RARITY_WEIGHTS.get(_get(creature.extra, "rarity"), 0.0)
             fish.append((creature, w))
             total_w += w
     return fish, total_w
@@ -158,15 +165,21 @@ def local_simulate(dc, *, location_id, tool_id, bait_id, hour,
                 chance = w / total_w * 100.0
                 table.append({
                     "chance": chance,
-                    "baseChance": chance,
+                    "baseChance": 0.0,  # filled in below
                     "value": {"type": "fish-creature", "creatureID": creature.id},
                 })
         if loot_w > 0:
             loot_pct = loot_w / total_w * 100.0
             table.append({
                 "chance": loot_pct,
-                "baseChance": loot_pct,
+                "baseChance": 0.0,
                 "value": {"type": "loot"},
             })
+        # CDF-style baseChance: sort rarest→most-common, cumulative sum (matches live API format)
+        table.sort(key=lambda e: e["chance"])
+        cumulative = 0.0
+        for e in table:
+            cumulative += e["chance"]
+            e["baseChance"] = cumulative
 
     return {"failChance": fail, "npcChance": npc, "table": table, "variants": {}}

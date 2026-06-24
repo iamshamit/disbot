@@ -661,7 +661,7 @@ class PeakHoursView(discord.ui.View):
         return sorted(
             [c for c in self.dc.fish_by_id.values()
              if creature_eligible(c, self._loc_id, self._tool_id, 0,
-                                  bosses=False, ignore_time=True)],
+                                  bosses=True, ignore_time=True)],
             key=lambda c: c.name,
         )
 
