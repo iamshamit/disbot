@@ -267,8 +267,8 @@ def _build_today_embed(dc, db_row, hour: int) -> discord.Embed:
     embed.add_field(name="🏆 Best Catch Right Now", value=best_catch_value, inline=False)
 
     # --- Your Setup ---
-    current_tool_id = db_row.get("current_tool") if db_row else None
-    current_bait_id = db_row.get("current_bait") if db_row else None
+    current_tool_id = db_row["current_tool"] if db_row else None
+    current_bait_id = db_row["current_bait"] if db_row else None
     if current_tool_id:
         best_loc = max(
             dc.location_by_id.values(),

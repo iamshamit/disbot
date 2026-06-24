@@ -178,7 +178,7 @@ def test_time_upcoming_windows_next_6h():
 def test_today_shows_active_event_from_profile():
     import cogs.utilities as u
     dc = _make_dc(fish=[_make_fish("bass", full_day=True)], locations=[_make_location("river")])
-    db_row = {"current_event": "Token Cloning"}
+    db_row = {"current_event": "Token Cloning", "current_tool": None, "current_bait": None}
     embed = u._build_today_embed(dc, db_row, hour=10)
     active_field = next((f for f in embed.fields if f.name == "Active Event"), None)
     assert active_field is not None
@@ -201,7 +201,7 @@ def test_today_top_3_locations():
 def test_today_active_event_not_in_dc():
     import cogs.utilities as u
     dc = _make_dc(fish=[_make_fish("bass", full_day=True)], locations=[_make_location("river")])
-    db_row = {"current_event": "unknown event"}
+    db_row = {"current_event": "unknown event", "current_tool": None, "current_bait": None}
     embed = u._build_today_embed(dc, db_row, hour=10)
     active_field = next((f for f in embed.fields if f.name == "Active Event"), None)
     assert active_field is not None
