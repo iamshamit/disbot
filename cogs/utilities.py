@@ -252,9 +252,9 @@ def _build_today_embed(dc, db_row, hour: int) -> discord.Embed:
             f for f in dc.fish_by_id.values()
             if creature_eligible(f, top["location"].id, top["tool"].id, hour, bosses=False, ignore_time=False)
         ]
-        best_fish = max(
+        best_fish = min(
             eligible,
-            key=lambda f: RARITY_WEIGHTS.get(f.extra.get("rarity", ""), 0.0),
+            key=lambda f: RARITY_WEIGHTS.get(f.extra.get("rarity", ""), float("inf")),
             default=None,
         )
         if best_fish:
