@@ -9,10 +9,9 @@ from utils.embeds import (
     build_fish_compare_embed,
     build_peak_hours_embed,
     build_fishlist_embed,
-    emoji_from_url,
 )
 from utils.views import DynamicPaginationView
-from utils.formatters import rarity_rank, is_available_now
+from utils.formatters import rarity_rank
 
 _PRELOAD_GUARD_MSG = "⏳ Data is still loading, please try again in a moment."
 _NOT_FOUND_MSG = "❌ No fish named **{name}** found. Try `/fishlist` to browse."
@@ -201,21 +200,6 @@ class FishListView(DynamicPaginationView):
         self.dc = dank_client
         self.sort = "alphabetical"
         self.rarity_filter = "All"
-        self.tool_filter = "All"
-        self.type_filter = "All"
-        # Override tool select options with actual tool data
-        for item in self.children:
-            if isinstance(item, discord.ui.Select) and "Tool" in (item.placeholder or ""):
-                item.options = [
-                    discord.SelectOption(label="All tools", value="All", default=True)
-                ] + [
-                    discord.SelectOption(
-                        label=t.name,
-                        value=t.id,
-                        emoji=emoji_from_url(t.imageURL),
-                    )
-                    for t in sorted(self.dc.tool_by_id.values(), key=lambda x: x.name)
-                ]
         self._refresh()
 
     def _refresh(self):
@@ -226,16 +210,6 @@ class FishListView(DynamicPaginationView):
             creatures = [c for c in creatures if c.extra.get("mythical")]
         elif self.rarity_filter != "All":
             creatures = [c for c in creatures if c.extra.get("rarity") == self.rarity_filter]
-        if self.tool_filter != "All":
-            creatures = [c for c in creatures if self.tool_filter in c.extra.get("tools", {})]
-        if self.type_filter == "Has Variants":
-            creatures = [c for c in creatures if c.extra.get("variants")]
-        elif self.type_filter == "Available Now":
-            creatures = [c for c in creatures if is_available_now(c)]
-        elif self.type_filter == "Boss":
-            creatures = [c for c in creatures if c.extra.get("boss")]
-        elif self.type_filter == "Mythical":
-            creatures = [c for c in creatures if c.extra.get("mythical")]
 
         if self.sort == "alphabetical":
             creatures.sort(key=lambda c: c.name.lower())
@@ -252,7 +226,6 @@ class FishListView(DynamicPaginationView):
     def build_embed(self) -> discord.Embed:
         return build_fishlist_embed(
             self.filtered, self.page, self.total_pages, self.sort, self.rarity_filter,
-            tool_filter=self.tool_filter, type_filter=self.type_filter,
         )
 
     @discord.ui.select(
@@ -286,34 +259,6 @@ class FishListView(DynamicPaginationView):
     )
     async def rarity_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         self.rarity_filter = select.values[0]
-        self.page = 0
-        self._refresh()
-        await interaction.response.edit_message(embed=self.build_embed(), view=self)
-
-    @discord.ui.select(
-        placeholder="🔧 Filter Tool ▾",
-        row=3,
-        options=[discord.SelectOption(label="All tools", value="All", default=True)],
-    )
-    async def tool_select(self, interaction: discord.Interaction, select: discord.ui.Select):
-        self.tool_filter = select.values[0]
-        self.page = 0
-        self._refresh()
-        await interaction.response.edit_message(embed=self.build_embed(), view=self)
-
-    @discord.ui.select(
-        placeholder="🏷️ Filter Type ▾",
-        row=4,
-        options=[
-            discord.SelectOption(label="All", value="All", default=True),
-            discord.SelectOption(label="✨ Has Variants", value="Has Variants"),
-            discord.SelectOption(label="✅ Available Now", value="Available Now"),
-            discord.SelectOption(label="👑 Boss", value="Boss"),
-            discord.SelectOption(label="⭐ Mythical", value="Mythical"),
-        ],
-    )
-    async def type_select(self, interaction: discord.Interaction, select: discord.ui.Select):
-        self.type_filter = select.values[0]
         self.page = 0
         self._refresh()
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
