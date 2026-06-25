@@ -414,6 +414,7 @@ class StatisticsView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=0)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
 
 
@@ -550,7 +551,7 @@ class SimulatorView(discord.ui.View):
             "mythicalFishID": None,
             "discoveredCreatures": None,
             "anglerTuesday": self._angler_tuesday,
-            "invasion": None,
+            "invasion": self._invasion,
             "locationWinner": self._loc_winner,
         }
 
@@ -638,6 +639,7 @@ class SimulatorView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=4)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
 
     @discord.ui.button(label="📊 Statistics", style=discord.ButtonStyle.secondary, disabled=True, row=4)
@@ -758,6 +760,7 @@ class PeakHoursView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=3)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
 
 

@@ -201,6 +201,12 @@ class LocationView(discord.ui.View):
         dc = self.dc
         db = self.db
         user_row = await db.get_or_create_user(self.user_id)
+        if not user_row:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not available", "Could not load your profile."),
+                ephemeral=True,
+            )
+            return
         tool_id = None
         if user_row["current_tool"]:
             t = dc.tool_by_name.get(user_row["current_tool"].lower())
@@ -257,6 +263,7 @@ class LocationView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=1)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
 
 
@@ -268,6 +275,7 @@ class LocationsListView(DynamicPaginationView):
         self.dc = dank_client
         self.sort = "name"
         self.filter_ = "All"
+        self.page = 0
         self._refresh()
 
     def _refresh(self):

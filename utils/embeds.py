@@ -160,10 +160,6 @@ def build_fish_compare_embed(c1, c2, dc=None) -> discord.Embed:
 
     r1, r2 = c1.extra.get("rarity", "Common"), c2.extra.get("rarity", "Common")
     rank1, rank2 = rarity_rank(r1), rarity_rank(r2)
-    l1 = len(c1.extra.get("locations") or [])
-    l2 = len(c2.extra.get("locations") or [])
-    var1 = len(c1.extra.get("variants") or [])
-    var2 = len(c2.extra.get("variants") or [])
 
     def _best_tool_info(c):
         tools_data = c.extra.get("tools") or {}
@@ -460,9 +456,9 @@ def build_tool_embed(tool, dc=None) -> discord.Embed:
     # Supported Fish section (only when dc provided)
     if dc is not None:
         supported = [
-            (f, f.extra.get("tools", {}).get(tool.id, {}))
+            (f, (f.extra.get("tools") or {}).get(tool.id, {}))
             for f in dc.fish_by_id.values()
-            if tool.id in f.extra.get("tools", {})
+            if tool.id in (f.extra.get("tools") or {})
         ]
         if supported:
             supported.sort(key=lambda fc: fc[0].name.lower())
@@ -514,6 +510,7 @@ def build_toolcompare_embed(tools: list) -> discord.Embed:
             len(extra.get("debuffs") or []),
         ]))
     embed.description = "```\n" + "\n".join(rows) + "\n```"
+    embed.description = embed.description[:4096]
     return embed
 
 
@@ -550,7 +547,6 @@ def build_bait_compare_embed(bait1, bait2) -> discord.Embed:
     embed.set_author(name="\u2694\ufe0f Bait Compare")
 
     e1, e2 = bait1.extra, bait2.extra
-    u1, u2 = e1.get("usage", 0), e2.get("usage", 0)
 
     def _col(ex, ox):
         u, ou = ex.get("usage", 0), ox.get("usage", 0)
@@ -778,6 +774,6 @@ def build_settings_embed(user_row) -> discord.Embed:
         f"\U0001f319 **Theme:** {theme}\n"
         f"\U0001f4c4 **Compact Mode:** {compact}\n"
         f"\U0001f514 **Notification Preferences:** *Coming in Phase 6*\n"
-        f"\U0001f3ae **Default Simulator Values:** *Coming in Phase 3*"
+        f"\U0001f3ae **Default Simulator Values:** *Available*"
     )
     return embed

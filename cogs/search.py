@@ -94,6 +94,7 @@ class SearchLocationView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=2)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
         self.stop()
 

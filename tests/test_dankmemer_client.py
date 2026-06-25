@@ -1,4 +1,5 @@
 import json
+import pytest
 from pathlib import Path
 from scripts.generate_loot_table import derive_loot_weight, RARITY_WEIGHTS
 from dankmemer_client import _parse_skill_categories
@@ -28,9 +29,9 @@ def test_derive_loot_weight_matches_lake_sample():
     assert round(loot_w, 4) == 5.7
 
 
-def test_loot_weights_loaded_in_preload(monkeypatch):
+@pytest.mark.asyncio
+async def test_loot_weights_loaded_in_preload(monkeypatch):
     """preload() populates loot_weights from data/loot_weights.json."""
-    import asyncio
     from dankmemer_client import DankMemerGameClient
 
     client = DankMemerGameClient()
@@ -50,7 +51,7 @@ def test_loot_weights_loaded_in_preload(monkeypatch):
         "baits": _FakeRoute(), "npcs": _FakeRoute(), "events": _FakeRoute(),
     })()
 
-    asyncio.run(client.preload())
+    await client.preload()
     assert "lake" in client.loot_weights
     assert len(client.loot_weights["lake"]) == 24
 

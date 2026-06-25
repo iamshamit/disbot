@@ -10,6 +10,12 @@ class PaginatedView(discord.ui.View):
         self._update_buttons()
 
     def _update_buttons(self):
+        if not self.embeds:
+            self.first_page.disabled = True
+            self.prev_page.disabled = True
+            self.next_page.disabled = True
+            self.last_page.disabled = True
+            return
         self.first_page.disabled = self.current_page == 0
         self.prev_page.disabled = self.current_page == 0
         self.next_page.disabled = self.current_page == len(self.embeds) - 1
@@ -114,6 +120,7 @@ class DynamicPaginationView(discord.ui.View):
     async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page > 0:
             self.page -= 1
+        self._refresh_page_btn()
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
     @discord.ui.button(label="Page  ?  / ?", style=discord.ButtonStyle.secondary, row=0)
@@ -124,6 +131,7 @@ class DynamicPaginationView(discord.ui.View):
     async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page < self.total_pages - 1:
             self.page += 1
+        self._refresh_page_btn()
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
     def _refresh_page_btn(self):

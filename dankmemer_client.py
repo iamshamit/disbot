@@ -16,7 +16,9 @@ def _parse_skill_categories(items: list) -> dict:
         if not m:
             continue
         base, tier = m.group(1), int(m.group(2))
-        cat = s["extra"]["category"]
+        cat = s.get("extra", {}).get("category")
+        if not cat:
+            continue
         clean_name = _re.sub(r"\s+(IX|VIII|VII|VI|V|IV|III|II|I)$", "", s["name"])
         if cat not in cats:
             cats[cat] = []
@@ -59,7 +61,11 @@ class DankMemerGameClient:
             retry_attempts=self._retry_attempts,
             retry_backoff=self._retry_backoff,
         )
-        await self._client.__aenter__()
+        try:
+            await self._client.__aenter__()
+        except Exception:
+            logger.warning("Failed to connect DankMemerClient", exc_info=True)
+            self._client = None
 
     async def __aenter__(self) -> "DankMemerGameClient":
         await self.connect()

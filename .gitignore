@@ -9,3 +9,4 @@ venv/
 .kimchi/
 *.zip
 .playwright-mcp
+AGENTS.md

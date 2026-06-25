@@ -8,4 +8,5 @@ def setup_logging(level: str = "INFO") -> None:
     handler.setFormatter(logging.Formatter(fmt))
     root = logging.getLogger()
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
-    root.handlers = [handler]
+    root.handlers.clear()
+    root.addHandler(handler)

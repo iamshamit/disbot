@@ -223,6 +223,7 @@ def _make_dc_for_optimizer():
     dc.event_by_id = {e.id: e for e in evs}
     dc.event_by_name = {e.name.lower(): e for e in evs}
     dc.tool_by_id = {"fishing-rod": rod}
+    dc.tool_by_name = {"fishing-rod": rod}
     dc.bait_by_id = {}
     return dc
 

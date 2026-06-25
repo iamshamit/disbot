@@ -146,6 +146,7 @@ class EventOverviewView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=0)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
 
 
@@ -182,6 +183,7 @@ class EventDetailView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=0)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
 
 
@@ -267,8 +269,13 @@ def _build_today_embed(dc, db_row, hour: int) -> discord.Embed:
     embed.add_field(name="🏆 Best Catch Right Now", value=best_catch_value, inline=False)
 
     # --- Your Setup ---
-    current_tool_id = db_row["current_tool"] if db_row else None
+    current_tool_name = db_row["current_tool"] if db_row else None
     current_bait_id = db_row["current_bait"] if db_row else None
+    current_tool_id = None
+    if current_tool_name:
+        tool_match = dc.tool_by_name.get(current_tool_name.lower())
+        if tool_match:
+            current_tool_id = tool_match.id
     if current_tool_id:
         best_loc = max(
             dc.location_by_id.values(),
@@ -342,14 +349,21 @@ class TimeView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=1)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
 
 
 class UtilitiesCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = bot.db
-        self.dc = bot.dank_client
+
+    @property
+    def dc(self):
+        return self.bot.dank_client
+
+    @property
+    def db(self):
+        return self.bot.db
 
     @app_commands.command(name="rarity", description="Show rarity tiers and how many fish are catchable right now.")
     async def rarity(self, interaction: discord.Interaction):
@@ -370,6 +384,11 @@ class UtilitiesCog(commands.Cog):
         if not self.dc.event_by_id:
             await interaction.response.send_message(
                 embed=EmbedBuilder.error("Not ready", _PRELOAD_MSG), ephemeral=True
+            )
+            return
+        if not self.db:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("Not available", "Database unavailable."), ephemeral=True
             )
             return
         if name:
@@ -451,6 +470,7 @@ class _DeleteView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
 
 

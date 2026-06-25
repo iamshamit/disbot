@@ -87,8 +87,18 @@ def format_time_window(creature) -> str:
     if not isinstance(start, dt_time) or not isinstance(end, dt_time):
         return "Unknown"
     start_h, end_h = start.hour, end.hour
-    hours = (end_h - start_h) if start_h <= end_h else (24 - start_h + end_h)
-    return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')} UTC · {hours}h"
+    total_minutes = (end_h * 60) - (start_h * 60)
+    if total_minutes < 0:
+        total_minutes += 24 * 60
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    if hours > 0 and minutes > 0:
+        duration = f"{hours}h {minutes}m"
+    elif hours > 0:
+        duration = f"{hours}h"
+    else:
+        duration = f"{minutes}m"
+    return f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')} UTC · {duration}"
 
 
 def winner_mark(a: Any, b: Any, higher_is_better: bool = True) -> tuple[str, str]:

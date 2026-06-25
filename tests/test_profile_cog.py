@@ -720,8 +720,6 @@ async def test_import_restores_profile_fields():
     # Simulate the modal submit directly
     from cogs.profile import ImportModal
     modal = ImportModal(db, member, inter.message)
-    modal.json_input.default = _json.dumps(payload)
-
     # Manually call on_submit with the mocked interaction
     inter2 = make_interaction()
     inter2.data = {"components": [{"components": [{"value": _json.dumps(payload)}]}]}

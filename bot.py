@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import signal
+import sys
 import time
 from pathlib import Path
 
@@ -26,11 +27,13 @@ class DankFishingBot(commands.Bot):
         self.autocomplete: AutocompleteIndex | None = None
         self._shutdown_event = asyncio.Event()
         self._command_start_times: dict[int, float] = {}
+        self._preload_task: asyncio.Task | None = None
 
     async def setup_hook(self) -> None:
-        loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(self.close()))
+        if sys.platform != 'win32':
+            loop = asyncio.get_running_loop()
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(self.close()))
         self.db = Database(config.DB_PATH)
         await self.db.connect()
         self.dank_client = DankMemerGameClient(
@@ -63,7 +66,8 @@ class DankFishingBot(commands.Bot):
         logger.info("Logged in as %s (%s)", self.user, self.user.id)
         logger.info("Guilds: %d", len(self.guilds))
         if self.dank_client and not self.dank_client.fish_by_id:
-            self.loop.create_task(self._preload_data())
+            if self._preload_task is None or self._preload_task.done():
+                self._preload_task = self.loop.create_task(self._preload_data())
 
     async def _preload_data(self) -> None:
         try:
@@ -74,7 +78,11 @@ class DankFishingBot(commands.Bot):
 
     async def on_interaction(self, interaction: discord.Interaction) -> None:
         if interaction.type == discord.InteractionType.application_command:
-            self._command_start_times[interaction.id] = time.monotonic()
+            now = time.monotonic()
+            self._command_start_times = {
+                k: v for k, v in self._command_start_times.items() if now - v < 60
+            }
+            self._command_start_times[interaction.id] = now
 
     async def on_app_command_completion(self, interaction: discord.Interaction, command: app_commands.Command) -> None:
         start = self._command_start_times.pop(interaction.id, None)
@@ -95,10 +103,13 @@ class DankFishingBot(commands.Bot):
         else:
             logger.error("App command error: %s", error, exc_info=True)
             embed = EmbedBuilder.error("Error", str(error))
-        if interaction.response.is_done():
-            await interaction.followup.send(embed=embed, ephemeral=True)
-        else:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+        except discord.HTTPException:
+            logger.warning("Failed to send error response to expired interaction", exc_info=True)
 
     async def close(self) -> None:
         logger.info("Shutting down gracefully...")
@@ -108,13 +119,16 @@ class DankFishingBot(commands.Bot):
             except Exception:
                 logger.warning("Error closing DankMemerClient", exc_info=True)
         if self.db:
-            await self.db.close()
+            try:
+                await self.db.close()
+            except Exception:
+                logger.warning("Error closing database", exc_info=True)
         await super().close()
         self._shutdown_event.set()
 
     def run_bot(self) -> None:
         try:
-            super().run(config._DISCORD_BOT_TOKEN, log_handler=None)
+            super().run(config.DISCORD_BOT_TOKEN, log_handler=None)
         except Exception:
             logger.error("Bot crashed", exc_info=True)
             raise

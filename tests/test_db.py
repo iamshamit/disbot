@@ -9,7 +9,10 @@ async def db(tmp_path):
     d = Database(tmp_path / "test.db")
     await d.connect()
     yield d
-    await d.close()
+    try:
+        await d.close()
+    except Exception:
+        pass
 
 
 # --- get_or_create_user ---

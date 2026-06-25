@@ -6,6 +6,15 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+ALLOWED_USER_FIELDS = {
+    "fishing_rod", "current_tool", "current_bait", "current_weather",
+    "current_event", "prestige", "coins", "boss_unlock",
+    "mythical_unlock", "favorite_fish", "favorite_location",
+    "favorite_tool", "favorite_bait", "timezone", "theme",
+    "compact_mode", "skills", "fishing_skill", "luck_skill",
+    "efficiency_skill", "simulator_presets", "notification_prefs", "language",
+}
+
 
 class Database:
     def __init__(self, db_path: Path):
@@ -41,19 +50,39 @@ class Database:
                 "CREATE TABLE _schema_version (version INTEGER PRIMARY KEY)"
             )
             await self._conn.commit()
-        cursor = await self._conn.execute("SELECT MAX(version) FROM _schema_version")
-        current = (await cursor.fetchone())[0] or 0
+        try:
+            async with self._conn.execute("SELECT MAX(version) FROM _schema_version") as cursor:
+                current = (await cursor.fetchone())[0] or 0
+        except Exception:
+            current = 0
         for f in files:
             version = int(f.stem.split("_")[0])
             if version > current:
                 logger.debug("Applying migration %s", f.name)
-                async with aiosqlite.connect(self.db_path) as conn:
-                    await conn.executescript(f.read_text())
-                    await conn.execute(
+                try:
+                    sql = f.read_text()
+                    if "ALTER TABLE users ADD COLUMN" in sql:
+                        async with self._conn.execute("PRAGMA table_info(users)") as cursor:
+                            existing_cols = {row[1] for row in await cursor.fetchall()}
+                        for line in sql.splitlines():
+                            line = line.strip().rstrip(";")
+                            if line.upper().startswith("ALTER TABLE USERS ADD COLUMN"):
+                                parts = line.split()
+                                col_name = parts[5] if len(parts) > 5 else None
+                                if col_name and col_name.lower() in {c.lower() for c in existing_cols}:
+                                    logger.debug("Column %s already exists, skipping", col_name)
+                                    continue
+                                await self._conn.execute(line + ";")
+                    else:
+                        await self._conn.executescript(sql)
+                    await self._conn.execute(
                         "INSERT INTO _schema_version (version) VALUES (?)",
                         (version,),
                     )
-                    await conn.commit()
+                    await self._conn.commit()
+                except Exception as e:
+                    logger.error("Migration %s failed: %s", f.name, e)
+                    raise
 
     async def get_user(self, discord_id: str):
         logger.debug("DB get_user: %s", discord_id)
@@ -71,6 +100,9 @@ class Database:
 
     async def update_user(self, discord_id: str, **fields) -> None:
         logger.debug("DB update_user: %s", discord_id)
+        if not fields:
+            return
+        fields = {k: v for k, v in fields.items() if k in ALLOWED_USER_FIELDS}
         if not fields:
             return
         set_clause = ", ".join(f"{k} = ?" for k in fields)

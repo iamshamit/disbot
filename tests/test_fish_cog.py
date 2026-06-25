@@ -246,13 +246,13 @@ async def test_fish_autocomplete_delegates_to_autocomplete_index():
     from cogs.fish import FishCog
     mock_ac = MagicMock()
     expected = [app_choices := discord.app_commands.Choice(name="Goldfish", value="Goldfish")]
-    mock_ac.fish_choices = MagicMock(return_value=[expected])
+    mock_ac.fish_choices = MagicMock(return_value=expected)
     bot = make_mock_bot(autocomplete=mock_ac)
     cog = FishCog(bot)
     interaction = make_interaction()
     result = await cog.fish_autocomplete(interaction, "Gold")
     mock_ac.fish_choices.assert_called_once_with("Gold")
-    assert result == [expected]
+    assert result == expected
 
 
 @pytest.mark.asyncio

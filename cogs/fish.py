@@ -124,7 +124,7 @@ class FishView(discord.ui.View):
             else:
                 parts.append(f"✨ {v}")
         extra_text = "\n\n**🔮 VARIANTS DETAIL**\n" + ("\n".join(parts) or "No data.")
-        max_body = 4096 - len(extra_text)
+        max_body = max(0, 4096 - len(extra_text))
         embed.description = (embed.description or "")[:max_body] + extra_text
         await interaction.response.edit_message(embed=embed, view=self)
 
@@ -140,7 +140,7 @@ class FishView(discord.ui.View):
                 lines.append(f"📍 **{loc.name}**  ·  💀 Fail {fail}%")
         detail = "\n".join(lines) if lines else "No location data."
         detail_text = f"\n\n**📍 LOCATION DETAILS**\n{detail}"
-        max_body = 4096 - len(detail_text)
+        max_body = max(0, 4096 - len(detail_text))
         embed.description = (embed.description or "")[:max_body] + detail_text
         await interaction.response.edit_message(embed=embed, view=self)
 
@@ -189,6 +189,7 @@ class FishView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger, row=1)
     async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         await interaction.message.delete()
 
 
@@ -200,6 +201,7 @@ class FishListView(DynamicPaginationView):
         self.dc = dank_client
         self.sort = "alphabetical"
         self.rarity_filter = "All"
+        self.page = 0
         self._refresh()
 
     def _refresh(self):

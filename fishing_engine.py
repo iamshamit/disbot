@@ -73,7 +73,7 @@ def is_time_active(time_obj, hour: int) -> bool:
         return True
     sh = start.hour if hasattr(start, "hour") else int(start)
     eh = end.hour if hasattr(end, "hour") else int(end)
-    reversed_flag = _get(time_obj, "reversed")
+    reversed_flag = bool(_get(time_obj, "reversed", False))
     if sh <= eh:
         return sh <= hour <= eh
     # start.hour > end.hour: two interpretations.
@@ -110,7 +110,12 @@ def creature_eligible(creature, location_id, tool_id, hour, *, bosses, ignore_ti
 def _eligible_weight_and_list(dc, location_id, tool_id, hour, *, bosses, ignore_time):
     fish = []
     total_w = 0.0
-    for creature in dc.fish_by_id.values():
+    location_creature_map = getattr(dc, "location_creature_map", None)
+    if location_creature_map is not None:
+        eligible = location_creature_map.get(location_id, [])
+    else:
+        eligible = dc.fish_by_id.values()
+    for creature in eligible:
         if creature_eligible(creature, location_id, tool_id, hour,
                              bosses=bosses, ignore_time=ignore_time):
             if _get(creature.extra, "boss", False):
@@ -138,7 +143,7 @@ def local_simulate(dc, *, location_id, tool_id, bait_id, hour,
     fail = 0 if angler_tuesday else (_get(location.extra, "failChance", 0) if location else 0)
     npc = TOOL_NPC_CHANCE.get(tool_id, _DEFAULT_NPC)
     if bait_id == _HEART:
-        npc += 2.0
+        npc = min(npc + 2.0, 1.0)
 
     ignore_time = bait_id == _TIMELY
     fish, fish_w = _eligible_weight_and_list(

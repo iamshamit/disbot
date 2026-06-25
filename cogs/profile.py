@@ -105,11 +105,11 @@ class EditStatsModal(discord.ui.Modal, title="Edit Stats"):
         if updates:
             await self.db.update_user(str(self.member.id), **updates)
         user_row = await self.db.get_user(str(self.member.id))
+        await interaction.response.defer()
         await self.message.edit(
             embed=build_profile_embed(user_row, self.member, self.dc),
             view=ProfileView(self.db, self.member, self.dc),
         )
-        await interaction.response.defer()
 
 
 # ---------------------------------------------------------------------------
@@ -764,6 +764,7 @@ class HistoryView(discord.ui.View):
         tab_map = {
             "fish": "fish_tab",
             "location": "location_tab",
+            "simulation": "sim_tab",
             "command": "command_tab",
         }
         for item in self.children:
