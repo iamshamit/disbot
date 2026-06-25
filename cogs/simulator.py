@@ -201,6 +201,15 @@ def build_statistics_embed(sim_data: dict, state: dict, dc) -> discord.Embed:
 
 # SkillsPickerView  (defined here; imported by cogs/profile.py)
 
+_ROMAN = ("", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX")
+
+
+def _skill_bar(current: int, max_tier: int, width: int = 10) -> str:
+    filled = round(width * current / max_tier) if max_tier else 0
+    filled = max(0, min(filled, width))
+    return "\u2588" * filled + "\u2591" * (width - filled)
+
+
 class SkillsPickerView(discord.ui.View):
     def __init__(self, db, member, dc, current_skills: dict, return_fn):
         super().__init__(timeout=300)
@@ -209,75 +218,142 @@ class SkillsPickerView(discord.ui.View):
         self.dc = dc
         self._current_skills = dict(current_skills)
         self._pending: dict[str, int] = {}
+        self._mode = "summary"  # "summary" or "category"
         self._category = next(
             (c for c in SKILL_CATEGORIES_ORDER if c in dc.skill_categories),
             SKILL_CATEGORIES_ORDER[0],
         )
-        self._page = 0
+        self._cat_page = 0
         self._return_fn = return_fn
         self._rebuild()
 
-    def _skills_for_cat(self) -> list[dict]:
-        return self.dc.skill_categories.get(self._category, [])
+    def _get_skill_level(self, base: str) -> int:
+        return self._pending.get(base, self._current_skills.get(base, 0))
 
-    def _page_count(self) -> int:
-        return max(1, (len(self._skills_for_cat()) + 2) // 3)
+    def _build_summary_embed(self) -> discord.Embed:
+        embed = discord.Embed(title="Fish Skills", color=0x5865F2)
+        total_sp = sum(self._current_skills.values())
+        pending_sp = sum(self._pending.values())
+        sp_display = total_sp if not self._pending else f"{total_sp} (+{pending_sp} pending)"
+        embed.set_author(name=f"Skill Points: {sp_display}")
+
+        cat_emoji = {"Economy": "\U0001f4b0", "Nature": "\U0001f33f", "Social": "\U0001f465", "Science": "\U0001f52c"}
+        for cat in SKILL_CATEGORIES_ORDER:
+            skills = self.dc.skill_categories.get(cat, [])
+            if not skills:
+                continue
+            lines = []
+            for s in skills:
+                level = self._get_skill_level(s["base"])
+                max_t = s["max_tier"]
+                bar = _skill_bar(level, max_t)
+                label = f"{s['name']} {_ROMAN[min(level, 9)]}" if level > 0 else s["name"]
+                lines.append(f"`{bar}` {label}")
+            emoji = cat_emoji.get(cat, "")
+            embed.add_field(name=f"{emoji} {cat}", value="\n".join(lines), inline=False)
+
+        embed.set_footer(text="Select a category below to edit skills")
+        return embed
+
+    def _build_category_embed(self) -> discord.Embed:
+        skills = self.dc.skill_categories.get(self._category, [])
+        cat_emoji = {"Economy": "\U0001f4b0", "Nature": "\U0001f33f", "Social": "\U0001f465", "Science": "\U0001f52c"}
+        emoji = cat_emoji.get(self._category, "")
+        embed = discord.Embed(title=f"{emoji} {self._category} Skills", color=0x5865F2)
+        embed.set_author(name="Fish Skills")
+
+        ITEMS = 5
+        start = self._cat_page * ITEMS
+        page_skills = skills[start:start + ITEMS]
+
+        for s in page_skills:
+            level = self._get_skill_level(s["base"])
+            max_t = s["max_tier"]
+            bar = _skill_bar(level, max_t, width=15)
+            tier_text = f"Tier {_ROMAN[min(level, 9)]}" if level > 0 else "Not unlocked"
+            embed.add_field(
+                name=s["name"],
+                value=f"`{bar}` {tier_text} / {_ROMAN[max_t]}",
+                inline=False,
+            )
+
+        total_pages = max(1, (len(skills) + ITEMS - 1) // ITEMS)
+        embed.set_footer(text=f"Page {self._cat_page + 1} / {total_pages}  \u00b7  {len(skills)} skills")
+        return embed
 
     def _rebuild(self) -> None:
         self.clear_items()
+
+        # Mode selector (row 0)
+        mode_opts = [
+            discord.SelectOption(label="Summary (all categories)", value="summary", default=self._mode == "summary"),
+        ]
         for cat in SKILL_CATEGORIES_ORDER:
-            if cat not in self.dc.skill_categories:
-                continue
-            btn = discord.ui.Button(
-                label=cat,
-                style=discord.ButtonStyle.primary if cat == self._category else discord.ButtonStyle.secondary,
-                row=0,
-            )
-            btn.callback = self._make_cat_cb(cat)
-            self.add_item(btn)
+            if cat in self.dc.skill_categories:
+                mode_opts.append(discord.SelectOption(label=cat, value=f"cat:{cat}", default=self._mode == "category" and self._category == cat))
+        mode_sel = discord.ui.Select(placeholder="Select view\u2026", options=mode_opts, min_values=0, max_values=1, row=0)
+        mode_sel.callback = self._on_mode_select
+        self.add_item(mode_sel)
 
-        skills = self._skills_for_cat()
-        page_skills = skills[self._page * 3 : self._page * 3 + 3]
-        for i, skill in enumerate(page_skills):
-            base = skill["base"]
-            max_tier = skill["max_tier"]
-            effective = self._pending.get(base, self._current_skills.get(base, 0))
-            placeholder = (
-                f"{skill['name']} — {_ROMAN[min(effective, 9)]}"
-                if effective > 0
-                else f"{skill['name']} — Not Unlocked"
-            )
-            opts = [discord.SelectOption(label="— Not Unlocked —", value="0")] + [
-                discord.SelectOption(label=f"Tier {_ROMAN[t]}", value=str(t))
-                for t in range(1, min(max_tier, 9) + 1)
-            ]
-            sel = discord.ui.Select(
-                placeholder=placeholder, options=opts[:25], min_values=0, max_values=1, row=i + 1
-            )
-            sel.callback = self._make_skill_cb(base, sel)
-            self.add_item(sel)
+        if self._mode == "summary":
+            # Summary: just Save + Cancel
+            save_btn = discord.ui.Button(label="\u2705 Save", style=discord.ButtonStyle.success, row=4)
+            save_btn.callback = self._save
+            self.add_item(save_btn)
+            cancel_btn = discord.ui.Button(label="\u274c Cancel", style=discord.ButtonStyle.secondary, row=4)
+            cancel_btn.callback = self._cancel
+            self.add_item(cancel_btn)
+        else:
+            # Category: skill selectors (rows 1-3) + nav + save/cancel
+            skills = self.dc.skill_categories.get(self._category, [])
+            ITEMS = 5
+            start = self._cat_page * ITEMS
+            page_skills = skills[start:start + ITEMS]
 
-        page_count = self._page_count()
-        prev_btn = discord.ui.Button(label="◀", style=discord.ButtonStyle.secondary, disabled=self._page == 0, row=4)
-        prev_btn.callback = self._prev_page
-        self.add_item(prev_btn)
-        next_btn = discord.ui.Button(label="▶", style=discord.ButtonStyle.secondary, disabled=self._page >= page_count - 1, row=4)
-        next_btn.callback = self._next_page
-        self.add_item(next_btn)
-        save_btn = discord.ui.Button(label="✅ Save", style=discord.ButtonStyle.success, row=4)
-        save_btn.callback = self._save
-        self.add_item(save_btn)
-        cancel_btn = discord.ui.Button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=4)
-        cancel_btn.callback = self._cancel
-        self.add_item(cancel_btn)
+            for i, s in enumerate(page_skills):
+                level = self._get_skill_level(s["base"])
+                max_t = s["max_tier"]
+                placeholder = f"{s['name']} \u2014 {_ROMAN[min(level, 9)]}" if level > 0 else f"{s['name']} \u2014 Not unlocked"
+                opts = [discord.SelectOption(label="\u2014 Not Unlocked \u2014", value="0")] + [
+                    discord.SelectOption(label=f"Tier {_ROMAN[t]}", value=str(t))
+                    for t in range(1, min(max_t, 9) + 1)
+                ]
+                sel = discord.ui.Select(placeholder=placeholder, options=opts[:25], min_values=0, max_values=1, row=i + 1)
+                sel.callback = self._make_skill_cb(s["base"], sel)
+                self.add_item(sel)
 
-    def _make_cat_cb(self, cat: str):
-        async def callback(interaction: discord.Interaction) -> None:
-            self._category = cat
-            self._page = 0
-            self._rebuild()
-            await interaction.response.edit_message(view=self)
-        return callback
+            total_pages = max(1, (len(skills) + ITEMS - 1) // ITEMS)
+            prev_btn = discord.ui.Button(label="\u25c0", style=discord.ButtonStyle.secondary, disabled=self._cat_page == 0, row=4)
+            prev_btn.callback = self._prev_page
+            self.add_item(prev_btn)
+            next_btn = discord.ui.Button(label="\u25b6", style=discord.ButtonStyle.secondary, disabled=self._cat_page >= total_pages - 1, row=4)
+            next_btn.callback = self._next_page
+            self.add_item(next_btn)
+            save_btn = discord.ui.Button(label="\u2705 Save", style=discord.ButtonStyle.success, row=4)
+            save_btn.callback = self._save
+            self.add_item(save_btn)
+            cancel_btn = discord.ui.Button(label="\u274c Cancel", style=discord.ButtonStyle.secondary, row=4)
+            cancel_btn.callback = self._cancel
+            self.add_item(cancel_btn)
+
+    async def _on_mode_select(self, interaction: discord.Interaction) -> None:
+        if not self._mode_sel.values:
+            await interaction.response.defer()
+            return
+        v = self._mode_sel.values[0]
+        if v == "summary":
+            self._mode = "summary"
+        elif v.startswith("cat:"):
+            self._mode = "category"
+            self._category = v[4:]
+            self._cat_page = 0
+        self._rebuild()
+        embed = self._build_summary_embed() if self._mode == "summary" else self._build_category_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @property
+    def _mode_sel(self) -> discord.ui.Select:
+        return next(c for c in self.children if isinstance(c, discord.ui.Select))
 
     def _make_skill_cb(self, base: str, sel: discord.ui.Select):
         async def callback(interaction: discord.Interaction) -> None:
@@ -287,14 +363,18 @@ class SkillsPickerView(discord.ui.View):
         return callback
 
     async def _prev_page(self, interaction: discord.Interaction) -> None:
-        self._page = max(0, self._page - 1)
+        self._cat_page = max(0, self._cat_page - 1)
         self._rebuild()
-        await interaction.response.edit_message(view=self)
+        embed = self._build_category_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
 
     async def _next_page(self, interaction: discord.Interaction) -> None:
-        self._page = min(self._page_count() - 1, self._page + 1)
+        skills = self.dc.skill_categories.get(self._category, [])
+        total_pages = max(1, (len(skills) + 4) // 5)
+        self._cat_page = min(total_pages - 1, self._cat_page + 1)
         self._rebuild()
-        await interaction.response.edit_message(view=self)
+        embed = self._build_category_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
 
     async def _save(self, interaction: discord.Interaction) -> None:
         merged = dict(self._current_skills)
@@ -429,6 +509,7 @@ class SimulatorView(discord.ui.View):
         self._loc_id: str | None = None
         self._tool_id: str | None = None
         self._bait_id: str | None = None
+        self._bait2_id: str | None = None
         self._event_id: str | None = None
         self._hour: int = datetime.now(timezone.utc).hour
         self._angler_tuesday: bool = False
@@ -436,16 +517,20 @@ class SimulatorView(discord.ui.View):
         self._loc_winner: bool = False
         self._last_embed: discord.Embed | None = None
         self._last_sim_data: dict | None = None
+        self._has_dual_bait: bool = False
         if initial_state:
             self._loc_id = initial_state.get("location_id")
             self._tool_id = initial_state.get("tool_id")
             self._bait_id = initial_state.get("bait_id")
+            self._bait2_id = initial_state.get("bait2_id")
             self._event_id = initial_state.get("event_id")
             self._hour = initial_state.get("hour", self._hour)
         # Clear bait if incompatible with the pre-filled tool
         allowed = self._allowed_baits()
         if allowed is not None and self._bait_id not in {b.id for b in allowed}:
             self._bait_id = None
+        if allowed is not None and self._bait2_id not in {b.id for b in allowed}:
+            self._bait2_id = None
         self._build_selects()
 
     def _allowed_baits(self) -> list | None:
@@ -456,6 +541,20 @@ class SimulatorView(discord.ui.View):
             return [b for b in sorted(self.dc.bait_by_id.values(), key=lambda x: x.name)
                     if b.id in _IFM_BAITS]
         return None
+
+    async def _check_dual_bait(self) -> None:
+        """Check if user has Theory Crafter IV for dual bait support."""
+        if not self.db:
+            return
+        try:
+            user_row = await self.db.get_or_create_user(str(self.member.id))
+            skills_json = user_row.get("skills")
+            if skills_json:
+                skills = _json.loads(skills_json)
+                tc_tier = skills.get("theory-crafter", 0)
+                self._has_dual_bait = tc_tier >= 4
+        except Exception:
+            pass
 
     def _build_selects(self) -> None:
         # Removes and re-adds select items; safe to call again when tool changes. Buttons are class-level and untouched.
@@ -482,6 +581,9 @@ class SimulatorView(discord.ui.View):
         self.add_item(self._tool_sel)
 
         allowed = self._allowed_baits()
+        dual = self._has_dual_bait and allowed is not None
+        max_bait = 2 if dual else 1
+        bait_label = "🪱 Bait…" if not dual else "🪱 Baits (2x with Theory Crafter IV)…"
         if allowed is not None and len(allowed) == 0:
             bait_opts = [discord.SelectOption(label="— Not available —", value="__none__", default=True)]
             self._bait_sel = discord.ui.Select(
@@ -490,13 +592,14 @@ class SimulatorView(discord.ui.View):
             )
         else:
             source = allowed if allowed is not None else sorted(self.dc.bait_by_id.values(), key=lambda x: x.name)[:24]
-            bait_opts = [discord.SelectOption(label="— No Bait —", value="__none__", default=self._bait_id is None)] + [
-                discord.SelectOption(label=b.name, value=b.id, default=b.id == self._bait_id,
+            current_baits = [b for b in [self._bait_id, self._bait2_id] if b]
+            bait_opts = [discord.SelectOption(label="— No Bait —", value="__none__", default=not current_baits)] + [
+                discord.SelectOption(label=b.name, value=b.id, default=b.id in current_baits,
                                      emoji=emoji_from_url(getattr(b, "imageURL", None)))
                 for b in source
             ]
-            self._bait_sel = discord.ui.Select(placeholder="🪱 Bait…", options=bait_opts, min_values=0, max_values=1, row=2)
-        self._bait_sel.callback = self._on_select
+            self._bait_sel = discord.ui.Select(placeholder=bait_label, options=bait_opts, min_values=0, max_values=max_bait, row=2)
+        self._bait_sel.callback = self._on_bait_select
         self.add_item(self._bait_sel)
 
         event_opts = [discord.SelectOption(label="— No Event —", value="__none__", default=self._event_id is None)] + [
@@ -523,12 +626,23 @@ class SimulatorView(discord.ui.View):
         if self._loc_sel.values:
             v = self._loc_sel.values[0]
             self._loc_id = None if v == "__none__" else v
-        if self._bait_sel.values:
-            v = self._bait_sel.values[0]
-            self._bait_id = None if v == "__none__" else v
         if self._event_sel.values:
             v = self._event_sel.values[0]
             self._event_id = None if v == "__none__" else v
+        self._build_selects()
+        await interaction.response.edit_message(view=self)
+
+    async def _on_bait_select(self, interaction: discord.Interaction) -> None:
+        vals = self._bait_sel.values
+        if not vals or (len(vals) == 1 and vals[0] == "__none__"):
+            self._bait_id = None
+            self._bait2_id = None
+        elif len(vals) == 1:
+            self._bait_id = vals[0]
+            self._bait2_id = None
+        else:
+            self._bait_id = vals[0]
+            self._bait2_id = vals[1]
         self._build_selects()
         await interaction.response.edit_message(view=self)
 
@@ -539,10 +653,11 @@ class SimulatorView(discord.ui.View):
             skills = {}
         now = datetime.now(timezone.utc)
         ts = int(now.replace(hour=self._hour, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        baits = [b for b in [self._bait_id, self._bait2_id] if b]
         return {
             "locationID": self._loc_id,
             "toolID": self._tool_id,
-            "baitsIDs": [self._bait_id] if self._bait_id else [],
+            "baitsIDs": baits,
             "time": ts,
             "events": [self._event_id] if self._event_id else [],
             "bosses": bool(user_row["boss_unlock"]),
@@ -562,6 +677,7 @@ class SimulatorView(discord.ui.View):
             "location_id": self._loc_id,
             "tool_id": self._tool_id,
             "bait_id": self._bait_id,
+            "bait2_id": self._bait2_id,
             "event_id": self._event_id,
             "hour": self._hour,
         }
@@ -569,6 +685,8 @@ class SimulatorView(discord.ui.View):
     @discord.ui.button(label="🔄 Calculate", style=discord.ButtonStyle.primary, row=4)
     async def calculate_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
+        await self._check_dual_bait()
+        self._build_selects()
         await interaction.edit_original_response(embed=loading_embed("Simulating catch rates..."))
         user_row = await self.db.get_or_create_user(str(self.member.id))
         try:

@@ -517,10 +517,13 @@ async def test_skills_picker_view_shows_category_tabs():
     member = make_member()
     async def return_fn(inter): pass
     view = SkillsPickerView(db, member, dc, {}, return_fn)
-    buttons = [c for c in view.children if isinstance(c, discord.ui.Button)]
-    labels = [b.label for b in buttons]
-    assert "Economy" in labels
-    assert "Nature" in labels
+    selects = [c for c in view.children if isinstance(c, discord.ui.Select)]
+    # First select is the mode selector (summary + categories)
+    mode_sel = selects[0]
+    opt_labels = [o.label for o in mode_sel.options]
+    assert "Summary (all categories)" in opt_labels
+    assert "Economy" in opt_labels
+    assert "Nature" in opt_labels
 
 @pytest.mark.asyncio
 async def test_skills_picker_save_writes_skills_to_db():
