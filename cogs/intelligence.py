@@ -30,9 +30,9 @@ def _build_optimizer_embed(
     if user_bait_id:
         bait = dc.bait_by_id.get(user_bait_id)
         bait_label = bait.name if bait else user_bait_id
-        embed.set_footer(text=f"🪱 Bait: {bait_label} (your current) · bait doesn't change which fish appear")
+        embed.set_footer(text=f"\U0001fab1 Bait: {bait_label} (your current) \u00b7 Bait affects rarity & catch quality, not which fish are available")
     else:
-        embed.set_footer(text="🪱 Bait: any — bait doesn't change which fish appear")
+        embed.set_footer(text="\U0001fab1 Bait: any \u00b7 Bait affects rarity & catch quality, not which fish are available")
     return embed
 
 
@@ -85,7 +85,7 @@ def _build_planner_embed(
         bait = dc.bait_by_id.get(user_bait_id)
         bait_label = f"{bait.name if bait else user_bait_id} (your current)"
     else:
-        bait_label = "any — bait doesn't change which fish appear"
+        bait_label = "any \u2014 affects rarity & catch quality, not availability"
     embed.add_field(
         name="🎣 Recommended setup",
         value=f"Tool: **{best_tool.name if best_tool else '—'}**  (best across all windows)\nBait: {bait_label}",
