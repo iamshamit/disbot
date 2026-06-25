@@ -15,6 +15,17 @@ def make_mock_client(creatures=None, locations=None, tools=None, baits=None):
     return client
 
 
+def _all_text(embed):
+    """Get all text content from an embed (description + all field values)."""
+    parts = []
+    if embed.description:
+        parts.append(embed.description)
+    for f in embed.fields:
+        parts.append(f.name or "")
+        parts.append(f.value or "")
+    return "\n".join(parts)
+
+
 # --- Fish embeds ---
 
 def test_build_fish_embed_title(creature):
@@ -36,27 +47,28 @@ def test_build_fish_embed_color_boss(boss_creature):
 def test_build_fish_embed_has_availability(creature):
     from utils.embeds import build_fish_embed
     embed = build_fish_embed(creature, make_mock_client())
-    assert "AVAILABILITY" in embed.description
-    assert "▐" in embed.description  # bar prefix
-    assert "▌" in embed.description  # bar suffix
+    text = _all_text(embed)
+    assert "Availability" in text
+    assert "\u2590" in text  # bar prefix
+    assert "\u258c" in text  # bar suffix
 
 def test_build_fish_embed_no_variants_section(creature):
     from utils.embeds import build_fish_embed
     embed = build_fish_embed(creature, make_mock_client())
-    assert "VARIANTS" not in embed.description
+    assert "Variants" not in _all_text(embed)
 
 def test_build_fish_embed_with_variants():
     from utils.embeds import build_fish_embed
     c = make_creature(variants=[{"name": "Chroma", "chance": 2}])
     embed = build_fish_embed(c, make_mock_client())
-    assert "VARIANTS" in embed.description
+    assert "Variants" in _all_text(embed)
 
 def test_build_fish_embed_resolves_location_names():
     from utils.embeds import build_fish_embed
     loc = make_location(id="loc1", name="Sunken Ship")
     c = make_creature(locations=["loc1"])
     embed = build_fish_embed(c, make_mock_client(locations=[loc]))
-    assert "Sunken Ship" in embed.description
+    assert "Sunken Ship" in _all_text(embed)
 
 def test_build_fish_embed_footer(creature):
     from utils.embeds import build_fish_embed
@@ -76,11 +88,12 @@ def test_build_fish_compare_embed_title():
 
 def test_build_fish_compare_embed_winner_marked():
     from utils.embeds import build_fish_compare_embed
-    c1 = make_creature(locations=["a", "b"])
-    c2 = make_creature(locations=["a", "b", "c", "d", "e"])
+    c1 = make_creature(locations=["a", "b"], rarity="Common")
+    c2 = make_creature(locations=["a", "b", "c", "d", "e"], rarity="Rare")
     embed = build_fish_compare_embed(c1, c2)
-    # c2 has more locations → its column field value should contain ✓
-    assert any("✓" in f.value for f in embed.fields)
+    # c2 has more locations and higher rarity → its column should contain ✓
+    all_vals = "\n".join(f.value for f in embed.fields if f.value)
+    assert "\u2713" in all_vals
 
 def test_build_fish_compare_embed_uses_fields():
     from utils.embeds import build_fish_compare_embed
@@ -142,19 +155,21 @@ def test_build_location_embed_title(location):
 def test_build_location_embed_has_stats(location):
     from utils.embeds import build_location_embed
     embed = build_location_embed(location, make_mock_client())
-    assert "Fail" in embed.description
-    assert "Mine" in embed.description
+    text = _all_text(embed)
+    assert "Fail" in text
+    assert "Mines" in text
 
 def test_build_location_embed_rarity_distribution(location):
     from utils.embeds import build_location_embed
     embed = build_location_embed(location, make_mock_client())
-    assert "RARITY" in embed.description
+    text = _all_text(embed)
+    assert "Rarity" in text
 
 def test_build_location_embed_temporary_badge():
     from utils.embeds import build_location_embed
     loc = make_location(temporary=True)
     embed = build_location_embed(loc, make_mock_client())
-    assert "Temporary" in embed.description
+    assert "Temporary" in _all_text(embed)
 
 def test_build_location_compare_embed_title():
     from utils.embeds import build_location_compare_embed
@@ -181,12 +196,14 @@ def test_build_tool_embed_title(tool):
 def test_build_tool_embed_has_buffs(tool):
     from utils.embeds import build_tool_embed
     embed = build_tool_embed(tool)
-    assert "BUFF" in embed.description
+    text = _all_text(embed)
+    assert "Buff" in text
 
 def test_build_tool_embed_bait_support(tool):
     from utils.embeds import build_tool_embed
     embed = build_tool_embed(tool)
-    assert "✅" in embed.description
+    text = _all_text(embed)
+    assert "\u2705" in text
 
 def test_build_toolcompare_embed_contains_all_tools():
     from utils.embeds import build_toolcompare_embed
@@ -207,7 +224,7 @@ def test_build_bait_embed_title(bait):
 def test_build_bait_embed_explanation(bait):
     from utils.embeds import build_bait_embed
     embed = build_bait_embed(bait)
-    assert "Rare catch" in embed.description
+    assert "Rare catch" in _all_text(embed)
 
 def test_build_bait_compare_embed_title():
     from utils.embeds import build_bait_compare_embed

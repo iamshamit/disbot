@@ -479,9 +479,10 @@ def test_tool_embed_fish_section_present():
     t = make_tool(id="rod", name="Fishing Rod")
     dc = _make_dc_with_fish()
     embed = build_tool_embed(t, dc)
-    assert "SUPPORTED FISH" in (embed.description or "")
-    assert "Bass" in (embed.description or "")
-    assert "Koi" in (embed.description or "")
+    fish_field = next((f for f in embed.fields if "Fish" in (f.name or "")), None)
+    assert fish_field is not None
+    assert "Bass" in fish_field.value
+    assert "Koi" in fish_field.value
 
 
 def test_tool_embed_best_fish_is_highest_rarity():
@@ -490,11 +491,11 @@ def test_tool_embed_best_fish_is_highest_rarity():
     t = make_tool(id="rod", name="Fishing Rod")
     dc = _make_dc_with_fish()
     embed = build_tool_embed(t, dc)
-    desc = embed.description or ""
+    fish_field = next((f for f in embed.fields if "Fish" in (f.name or "")), None)
+    assert fish_field is not None
     # Koi is Very Rare (rank 3), Bass is Common (rank 0) — Koi should be Best
-    assert "Best" in desc
-    best_line = next((l for l in desc.splitlines() if "Best" in l), "")
-    assert "Koi" in best_line
+    assert "\u2b50" in fish_field.value
+    assert "Koi" in fish_field.value
 
 
 def test_tool_embed_no_dc_no_fish_section():

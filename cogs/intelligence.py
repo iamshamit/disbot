@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.embeds import EmbedBuilder
+from utils.embeds import EmbedBuilder, loading_embed
 from utils.optimizer import best_setups, score_setup, session_windows
 
 _PRELOAD_GUARD_MSG = "⏳ Data is still loading, please try again in a moment."

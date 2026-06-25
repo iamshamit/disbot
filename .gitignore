@@ -1,6 +1,5 @@
 .env
 data/*
-!data/loot_weights.json
 *.db
 __pycache__/
 *.pyc
@@ -10,3 +9,4 @@ venv/
 *.zip
 .playwright-mcp
 AGENTS.md
+.mimocode

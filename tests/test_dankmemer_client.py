@@ -29,33 +29,6 @@ def test_derive_loot_weight_matches_lake_sample():
     assert round(loot_w, 4) == 5.7
 
 
-@pytest.mark.asyncio
-async def test_loot_weights_loaded_in_preload(monkeypatch):
-    """preload() populates loot_weights from data/loot_weights.json."""
-    from dankmemer_client import DankMemerGameClient
-
-    client = DankMemerGameClient()
-
-    async def _noop():
-        return None
-
-    # Skip the network parts of preload; only exercise the loot-weights loader.
-    monkeypatch.setattr(client, "connect", _noop)
-
-    async def fake_query():
-        return []
-    class _FakeRoute:
-        query = staticmethod(fake_query)
-    client._client = type("X", (), {
-        "creatures": _FakeRoute(), "locations": _FakeRoute(), "tools": _FakeRoute(),
-        "baits": _FakeRoute(), "npcs": _FakeRoute(), "events": _FakeRoute(),
-    })()
-
-    await client.preload()
-    assert "lake" in client.loot_weights
-    assert len(client.loot_weights["lake"]) == 24
-
-
 def test_parse_skill_categories_groups_by_category():
     items = [
         {"id": "haggler-1", "name": "Haggler I", "extra": {"category": "Economy", "description": ""}},

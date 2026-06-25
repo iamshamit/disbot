@@ -52,6 +52,17 @@ def progress_bar(value: int | float, total: int | float, width: int = 20) -> str
     return "█" * filled + "░" * (width - filled)
 
 
+def short_bar(value: int | float, total: int | float, width: int = 10) -> str:
+    filled = round((value / total) * width) if total else 0
+    filled = max(0, min(filled, width))
+    return "█" * filled + "░" * (width - filled)
+
+
+def timestamp_str(dt_obj) -> str:
+    import discord
+    return f"<t:{int(dt_obj.timestamp())}:R>"
+
+
 def availability_bar(start_h: int, end_h: int, full_day: bool) -> str:
     if full_day:
         return "█" * 24

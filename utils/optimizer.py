@@ -1,5 +1,5 @@
 from __future__ import annotations
-from fishing_engine import creature_eligible, RARITY_WEIGHTS
+from utils.fish_data import creature_eligible, RARITY_WEIGHTS
 
 
 def score_setup(dc, tool_id: str, location_id: str, hour: int) -> float:

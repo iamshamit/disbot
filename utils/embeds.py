@@ -1,5 +1,6 @@
 import discord
 import json as _skills_json
+import random as _random
 
 
 class EmbedBuilder:
@@ -33,12 +34,37 @@ class EmbedBuilder:
         return cls._base(title=f"\u26a0\ufe0f {title}", description=description, color=cls.WARNING_COLOR)
 
 
+_TIPS = [
+    "Use Money Bait to sell fish instantly for coins + tokens",
+    "Harpoon + Deadly Bait gives the best boss catch rate",
+    "Fish during Happy Hour (Econ I/III) for bonus coins",
+    "Complete skill challenges in /fish guide for skill points",
+    "Check /fish boosts for rotating catch bonuses",
+    "Use Lucky Bait for better rare fish chances",
+    "Mystic Pond opens on Tuesdays and Saturdays",
+    "Net + XP Bait is the fastest way to grind season pass",
+    "Use Timely Bait to catch fish outside their normal hours",
+    "Magnet Rope doubles skeleton key drop chances",
+]
+
+
+def loading_embed(text: str = "Fetching results...", tip: str | None = None) -> discord.Embed:
+    if tip is None:
+        tip = _random.choice(_TIPS)
+    embed = discord.Embed(
+        title=f"\U0001f3a3 {text}",
+        description=f"\U0001f4a1 **Tip:** {tip}",
+        color=0x5865F2,
+    )
+    return embed
+
+
 from datetime import time as dt_time, datetime, timezone
 from utils.formatters import (
     rarity_color, rarity_emoji, rarity_rank,
     availability_bar, is_available_now, format_time_window,
-    COMPARE_COLOR, progress_bar, RARITY_ORDER,
-    RARITY_COLORS,
+    COMPARE_COLOR, progress_bar, short_bar, RARITY_ORDER,
+    RARITY_COLORS, LOCATION_COLOR, TOOL_COLOR, BAIT_COLOR, NPC_COLOR,
 )
 
 _SEP = "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500"
@@ -66,33 +92,34 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
     variants = extra.get("variants") or []
 
     embed = discord.Embed(title=creature.name, color=rarity_color(rarity, boss=boss))
-    embed.set_author(name="\ud83d\udc1f Fish Encyclopedia")
+    embed.set_author(name="\U0001f41f Fish Encyclopedia")
     if creature.imageURL:
         embed.set_thumbnail(url=creature.imageURL)
+    embed.timestamp = discord.utils.utcnow()
 
-    lines: list[str] = []
     if flavor:
-        lines += [f'*"{flavor}"*', ""]
+        embed.description = f'*"{flavor}"*'
 
-    rem = rarity_emoji(rarity)
-    badge_parts = [f"{rem} **{rarity}**"]
+    # Badges line
+    badge_parts = [f"{rarity_emoji(rarity)} **{rarity}**"]
     if boss:
-        badge_parts.append("\ud83d\udc51 Boss")
+        badge_parts.append("\U0001f451 Boss")
     if mythical:
         badge_parts.append("\u2728 Mythical")
-    lines.append("  \u00b7  ".join(badge_parts))
+    embed.add_field(name="\u200b", value="  \u00b7  ".join(badge_parts), inline=False)
 
     # Availability
-    lines += ["", _SEP, "**\ud83d\udd50 AVAILABILITY**"]
     start = time_data.get("start")
     end = time_data.get("end")
     if full_day:
-        lines.append("\u2590" + "\u2588" * 24 + "\u258c  All Day")
+        avail_val = "\u2590" + "\u2588" * 24 + "\u258c  All Day"
     elif isinstance(start, dt_time) and isinstance(end, dt_time):
         bar = availability_bar(start.hour, end.hour, False)
-        lines.append(f"\u2590{bar}\u258c  {format_time_window(creature)}")
-        avail = "\u2705 Available" if is_available_now(creature) else "\u274c Not available"
-        lines.append(f"Right now: {avail}")
+        avail_val = f"\u2590{bar}\u258c  {format_time_window(creature)}"
+    else:
+        avail_val = "Unknown"
+    avail_now = "\u2705 Available" if is_available_now(creature) else "\u274c Not available"
+    embed.add_field(name="\u23f0 Availability", value=f"{avail_val}\nRight now: {avail_now}", inline=False)
 
     # Locations
     loc_ids = extra.get("locations") or []
@@ -100,21 +127,23 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
         loc.name for lid in loc_ids
         if (loc := dank_client.location_by_id.get(lid)) is not None
     ]
-    lines += ["", _SEP, f"**\ud83d\udccd LOCATIONS  ({len(loc_names)})**"]
-    lines.append("  \u00b7  ".join(loc_names) if loc_names else "None")
+    embed.add_field(
+        name=f"\U0001f4cd Locations ({len(loc_names)})",
+        value="  \u00b7  ".join(loc_names) if loc_names else "None",
+        inline=False,
+    )
 
     # Variants
     if variants:
-        lines += ["", _SEP, f"**\ud83d\udd2e VARIANTS  ({len(variants)})**"]
         parts = []
         for v in variants:
             if isinstance(v, dict):
                 parts.append(f"\u2728 {v.get('name', 'Unknown')}")
             else:
                 parts.append(f"\u2728 {v}")
-        lines.append("  \u00b7  ".join(parts))
+        embed.add_field(name=f"\U0001f52e Variants ({len(variants)})", value="  \u00b7  ".join(parts), inline=False)
 
-    # Tools section
+    # Tools
     tools_data = extra.get("tools") or {}
     if tools_data and dank_client.tool_by_id:
         best_max = max((v.get("max", 0) for v in tools_data.values()), default=0)
@@ -124,14 +153,12 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
             if t is None:
                 continue
             lo, hi = catch.get("min", 0), catch.get("max", 0)
-            star = "  \u2b50 Best" if hi == best_max and best_max > 0 else ""
+            star = "  \u2b50" if hi == best_max and best_max > 0 else ""
             tool_lines.append(f"**{t.name}** \u2014 {lo}\u2013{hi}{star}")
         if tool_lines:
-            lines += ["", _SEP, f"**\U0001f527 TOOLS  ({len(tool_lines)})**"]
-            lines.extend(tool_lines)
+            embed.add_field(name=f"\U0001f527 Tools ({len(tool_lines)})", value="\n".join(tool_lines), inline=False)
 
     # Best Location
-    loc_ids = extra.get("locations") or []
     best_loc = None
     best_fail = None
     for lid in loc_ids:
@@ -143,24 +170,25 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
             best_fail = fail
             best_loc = loc
     if best_loc is not None:
-        lines += ["", f"\U0001f4cd **Best Location:** {best_loc.name}  (fail: {best_fail}%)"]
+        embed.add_field(name="\U0001f4cd Best Location", value=f"{best_loc.name} (fail: {best_fail}%)", inline=True)
 
-    lines += ["", _SEP]
-    embed.description = "\n".join(lines)[:4096]
     embed.set_footer(text=f"Internal ID: {creature.id}")
     return embed
 
 
+def build_compare_base(title: str, author_text: str, col1_name: str, col2_name: str, rows: list[tuple]) -> discord.Embed:
+    embed = discord.Embed(title=title, color=COMPARE_COLOR)
+    embed.set_author(name=author_text)
+    labels = "\n".join(f"**{r[0]}**" for r in rows)
+    col1 = "\n".join(str(r[1]) for r in rows)
+    col2 = "\n".join(str(r[2]) for r in rows)
+    embed.add_field(name="\u200b", value=labels, inline=True)
+    embed.add_field(name=col1_name, value=col1, inline=True)
+    embed.add_field(name=col2_name, value=col2, inline=True)
+    return embed
+
+
 def build_fish_compare_embed(c1, c2, dc=None) -> discord.Embed:
-    embed = discord.Embed(
-        title=f"\u2694\ufe0f  {c1.name}  vs  {c2.name}",
-        color=COMPARE_COLOR,
-    )
-    embed.set_author(name="\u2694\ufe0f Fish Compare")
-
-    r1, r2 = c1.extra.get("rarity", "Common"), c2.extra.get("rarity", "Common")
-    rank1, rank2 = rarity_rank(r1), rarity_rank(r2)
-
     def _best_tool_info(c):
         tools_data = c.extra.get("tools") or {}
         if not tools_data:
@@ -173,10 +201,7 @@ def build_fish_compare_embed(c1, c2, dc=None) -> discord.Embed:
             name = best_ids[0] if best_ids else "\u2014"
         return name, best_max
 
-    bt1_name, bt1_max = _best_tool_info(c1)
-    bt2_name, bt2_max = _best_tool_info(c2)
-
-    def _col(c, other):
+    def _val(c, other):
         ex, ox = c.extra, other.extra
         rarity = ex.get("rarity", "Common")
         rr = rarity_rank(rarity)
@@ -200,9 +225,18 @@ def build_fish_compare_embed(c1, c2, dc=None) -> discord.Embed:
             str(bt_max) + mc_mark,
         ])
 
+    rows = [
+        ("Rarity", _val(c1, c2), _val(c2, c1)),
+    ]
+    # Build embed directly — the multi-line values don't fit the build_compare_base pattern
+    embed = discord.Embed(
+        title=f"\u2694\ufe0f  {c1.name}  vs  {c2.name}",
+        color=COMPARE_COLOR,
+    )
+    embed.set_author(name="\u2694\ufe0f Fish Compare")
     embed.add_field(name="\u200b", value="**Rarity**\n**Boss**\n**Mythical**\n**Window**\n**Locations**\n**Variants**\n**Best Tool**\n**Max Catch**", inline=True)
-    embed.add_field(name=c1.name, value=_col(c1, c2), inline=True)
-    embed.add_field(name=c2.name, value=_col(c2, c1), inline=True)
+    embed.add_field(name=c1.name, value=_val(c1, c2), inline=True)
+    embed.add_field(name=c2.name, value=_val(c2, c1), inline=True)
     return embed
 
 
@@ -306,66 +340,56 @@ def build_location_embed(location, dank_client) -> discord.Embed:
     disabled = extra.get("disabled", False)
     temporary = extra.get("temporary", False)
 
-    embed = discord.Embed(title=location.name, color=0x00b4d8)
+    embed = discord.Embed(title=location.name, color=LOCATION_COLOR)
     embed.set_author(name="\U0001f4cd Location")
+    embed.timestamp = discord.utils.utcnow()
     if extra.get("thumbnailURL"):
         embed.set_thumbnail(url=extra["thumbnailURL"])
     if extra.get("bannerURL"):
         embed.set_image(url=extra["bannerURL"])
 
-    lines: list[str] = []
     status_parts = []
     if temporary:
         status_parts.append("\U0001f534 Temporary")
     if disabled:
         status_parts.append("\u26d4 Disabled")
     if status_parts:
-        lines += ["  \u00b7  ".join(status_parts), ""]
+        embed.add_field(name="\u200b", value="  \u00b7  ".join(status_parts), inline=False)
 
     fail = extra.get("failChance", 0)
     mine = extra.get("mineChance", 0)
     creatures = extra.get("creatures") or []
-    lines += [
-        "**\U0001f30a STATISTICS**",
-        f"\U0001f480 Fail: **{fail}%**   \u26cf\ufe0f Mine: **{mine}%**   \U0001f41f Pool: **{len(creatures)} fish**",
-        "",
-        _SEP,
-    ]
+    embed.add_field(name="\U0001f480 Fail", value=f"{fail}%", inline=True)
+    embed.add_field(name="\u26cf\ufe0f Mines", value=f"{mine}%", inline=True)
+    embed.add_field(name="\U0001f41f Pool", value=f"{len(creatures)} fish", inline=True)
 
     rarity_fish: dict = location.rarityFish or {}
     if rarity_fish:
-        lines.append("**\U0001f308 RARITY DISTRIBUTION**")
         total_fish = sum(len(v) for v in rarity_fish.values())
+        rarity_lines = []
         for rarity in RARITY_ORDER:
             bucket = rarity_fish.get(rarity, [])
             if not bucket:
                 continue
             pct = round(len(bucket) / total_fish * 100) if total_fish else 0
             bar = progress_bar(pct, 100, width=20)
-            lines.append(f"{rarity_emoji(rarity)} {rarity:<14} {bar}  {pct}%")
-        lines += ["", _SEP]
+            rarity_lines.append(f"{rarity_emoji(rarity)} {rarity:<14} {bar}  {pct}%")
+        if rarity_lines:
+            embed.add_field(name="\U0001f308 Rarity Distribution", value="\n".join(rarity_lines), inline=False)
 
     npcs = extra.get("npcs") or []
     if npcs:
-        lines += ["**\U0001f464 NPCs**", "  \u00b7  ".join(npcs), "", _SEP]
+        embed.add_field(name="\U0001f464 NPCs", value="  \u00b7  ".join(npcs), inline=False)
 
-    embed.description = "\n".join(lines)[:4096]
     embed.set_footer(text=f"Internal ID: {location.id}")
     return embed
 
 
 def build_location_compare_embed(loc1, loc2) -> discord.Embed:
-    embed = discord.Embed(
-        title=f"\u2694\ufe0f  {loc1.name}  vs  {loc2.name}",
-        color=COMPARE_COLOR,
-    )
-    embed.set_author(name="\u2694\ufe0f Location Compare")
-
     def _count(loc, rarity):
         return len((loc.rarityFish or {}).get(rarity, []))
 
     _RARITIES = ["Rare", "Very Rare", "Absurdly Rare", "Mythical"]
-    labels = ["**Fish Pool**", "**Fail %**", "**Mine %**"] + [f"**{r[:8]} fish**" for r in _RARITIES]
 
     def _col(loc, other):
         ex, ox = loc.extra, other.extra
@@ -381,12 +405,18 @@ def build_location_compare_embed(loc1, loc2) -> discord.Embed:
         for rarity in _RARITIES:
             r, o = _count(loc, rarity), _count(other, rarity)
             vals.append(str(r) + (" \u2713" if r > o else ""))
-        return "\n".join(vals)
+        return vals
 
-    embed.add_field(name="\u200b", value="\n".join(labels), inline=True)
-    embed.add_field(name=loc1.name, value=_col(loc1, loc2), inline=True)
-    embed.add_field(name=loc2.name, value=_col(loc2, loc1), inline=True)
-    return embed
+    v1 = _col(loc1, loc2)
+    v2 = _col(loc2, loc1)
+    labels = ["**Fish Pool**", "**Fail %**", "**Mine %**"] + [f"**{r[:8]} fish**" for r in _RARITIES]
+    rows = list(zip(labels, v1, v2))
+    return build_compare_base(
+        title=f"\u2694\ufe0f  {loc1.name}  vs  {loc2.name}",
+        author_text="\u2694\ufe0f Location Compare",
+        col1_name=loc1.name, col2_name=loc2.name,
+        rows=rows,
+    )
 
 
 def build_locations_list_embed(
@@ -398,9 +428,10 @@ def build_locations_list_embed(
 ) -> discord.Embed:
     embed = discord.Embed(
         title=f"\U0001f4cd All Locations  ({len(locations)} total)",
-        color=0x00b4d8,
+        color=LOCATION_COLOR,
     )
     embed.set_author(name="\U0001f4cd Locations")
+    embed.timestamp = discord.utils.utcnow()
 
     ITEMS = 8
     start_idx = page * ITEMS
@@ -425,35 +456,31 @@ def build_locations_list_embed(
 
 def build_tool_embed(tool, dc=None) -> discord.Embed:
     extra = tool.extra
-    embed = discord.Embed(title=tool.name, color=0xff9500)
+    embed = discord.Embed(title=tool.name, color=TOOL_COLOR)
     embed.set_author(name="\U0001f527 Tool")
+    embed.timestamp = discord.utils.utcnow()
     if tool.imageURL:
         embed.set_thumbnail(url=tool.imageURL)
 
-    lines: list[str] = []
     flavor = extra.get("flavor", "")
     if flavor:
-        lines += [f'*"{flavor}"*', ""]
-
-    buffs = extra.get("buffs") or []
-    if buffs:
-        lines += [_SEP, "**\u2728 BUFFS**"]
-        for b in buffs:
-            name = b.get("name", str(b)) if isinstance(b, dict) else str(b)
-            lines.append(f"\u2022 {name}")
-
-    debuffs = extra.get("debuffs") or []
-    if debuffs:
-        lines += ["", "**\U0001f4a2 DEBUFFS**"]
-        for d in debuffs:
-            name = d.get("name", str(d)) if isinstance(d, dict) else str(d)
-            lines.append(f"\u2022 {name}")
+        embed.description = f'*"{flavor}"*'
 
     bait_support = "\u2705" if extra.get("baits") else "\u274c"
     usage = extra.get("usage", "?")
-    lines += ["", _SEP, f"\U0001fab1 Bait Support: {bait_support}   \u00b7   \U0001f4ca Usage: {usage}", _SEP]
+    embed.add_field(name="\U0001fab1 Baits", value=bait_support, inline=True)
+    embed.add_field(name="\U0001f4ca Durability", value=f"{usage} uses" if usage != -1 else "\u221e", inline=True)
 
-    # Supported Fish section (only when dc provided)
+    buffs = extra.get("buffs") or []
+    if buffs:
+        buff_text = "\n".join(f"\u2022 {b.get('name', str(b)) if isinstance(b, dict) else str(b)}" for b in buffs)
+        embed.add_field(name="\u2728 Buffs", value=buff_text, inline=False)
+
+    debuffs = extra.get("debuffs") or []
+    if debuffs:
+        debuff_text = "\n".join(f"\u2022 {d.get('name', str(d)) if isinstance(d, dict) else str(d)}" for d in debuffs)
+        embed.add_field(name="\U0001f4a2 Debuffs", value=debuff_text, inline=False)
+
     if dc is not None:
         supported = [
             (f, (f.extra.get("tools") or {}).get(tool.id, {}))
@@ -467,17 +494,14 @@ def build_tool_embed(tool, dc=None) -> discord.Embed:
             best_catch = best_tuple[1]
             best_rarity = best_fish.extra.get("rarity", "Common")
             bc_lo, bc_hi = best_catch.get("min", 0), best_catch.get("max", 0)
-            lines += ["", _SEP, f"**\ud83d\udc1f SUPPORTED FISH  ({len(supported)})**"]
-            lines.append(
-                f"Best: **{best_fish.name}** ({best_rarity}) \u2014 catches {bc_lo}\u2013{bc_hi}"
-            )
-            for fish, catch in supported[:12]:
+            fish_lines = [f"**{best_fish.name}** ({rarity_emoji(best_rarity)} {best_rarity}) \u2014 {bc_lo}\u2013{bc_hi}  \u2b50"]
+            for fish, catch in supported[:8]:
                 lo, hi = catch.get("min", 0), catch.get("max", 0)
-                lines.append(f"**{fish.name}** \u2014 {lo}\u2013{hi}")
-            if len(supported) > 12:
-                lines.append(f"\u2026 and {len(supported) - 12} more")
+                fish_lines.append(f"**{fish.name}** \u2014 {lo}\u2013{hi}")
+            if len(supported) > 8:
+                fish_lines.append(f"\u2026 and {len(supported) - 8} more")
+            embed.add_field(name=f"\U0001f41f Supported Fish ({len(supported)})", value="\n".join(fish_lines), inline=False)
 
-    embed.description = "\n".join(lines)[:4096]
     embed.set_footer(text=f"Internal ID: {tool.id}")
     return embed
 
@@ -516,77 +540,68 @@ def build_toolcompare_embed(tools: list) -> discord.Embed:
 
 def build_bait_embed(bait) -> discord.Embed:
     extra = bait.extra
-    embed = discord.Embed(title=bait.name, color=0x95d44a)
+    embed = discord.Embed(title=bait.name, color=BAIT_COLOR)
     embed.set_author(name="\U0001fab1 Bait")
+    embed.timestamp = discord.utils.utcnow()
     if bait.imageURL:
         embed.set_thumbnail(url=bait.imageURL)
 
-    lines: list[str] = []
     flavor = extra.get("flavor", "")
     if flavor:
-        lines += [f'*"{flavor}"*', ""]
+        embed.description = f'*"{flavor}"*'
 
     explanation = extra.get("explanation", "")
     if explanation:
-        lines += [_SEP, "**\U0001f4a1 WHAT IT DOES**", explanation]
+        embed.add_field(name="\U0001f4a1 What It Does", value=explanation, inline=False)
 
     idle = "\u2705" if extra.get("idle") else "\u274c"
     usage = extra.get("usage", "?")
-    lines += ["", _SEP, f"\U0001f916 Idle Compatible: {idle}   \u00b7   \U0001f4ca Usage: {usage}", _SEP]
+    embed.add_field(name="\U0001f916 Idle", value=idle, inline=True)
+    embed.add_field(name="\U0001f4ca Uses", value=str(usage), inline=True)
 
-    embed.description = "\n".join(lines)[:4096]
     embed.set_footer(text=f"Internal ID: {bait.id}")
     return embed
 
 
 def build_bait_compare_embed(bait1, bait2) -> discord.Embed:
-    embed = discord.Embed(
-        title=f"\u2694\ufe0f  {bait1.name}  vs  {bait2.name}",
-        color=COMPARE_COLOR,
-    )
-    embed.set_author(name="\u2694\ufe0f Bait Compare")
-
     e1, e2 = bait1.extra, bait2.extra
-
-    def _col(ex, ox):
-        u, ou = ex.get("usage", 0), ox.get("usage", 0)
-        return "\n".join([
-            "\u2705" if ex.get("idle") else "\u274c",
-            str(u) + (" \u2713" if u > ou else ""),
-            (ex.get("explanation") or "\u2014")[:60],
-        ])
-
-    embed.add_field(name="\u200b", value="**Idle OK**\n**Usage**\n**Effect**", inline=True)
-    embed.add_field(name=bait1.name, value=_col(e1, e2), inline=True)
-    embed.add_field(name=bait2.name, value=_col(e2, e1), inline=True)
-    return embed
+    u1, u2 = e1.get("usage", 0), e2.get("usage", 0)
+    rows = [
+        ("Idle OK", "\u2705" if e1.get("idle") else "\u274c", "\u2705" if e2.get("idle") else "\u274c"),
+        ("Usage", str(u1) + (" \u2713" if u1 > u2 else ""), str(u2) + (" \u2713" if u2 > u1 else "")),
+        ("Effect", (e1.get("explanation") or "\u2014")[:60], (e2.get("explanation") or "\u2014")[:60]),
+    ]
+    return build_compare_base(
+        title=f"\u2694\ufe0f  {bait1.name}  vs  {bait2.name}",
+        author_text="\u2694\ufe0f Bait Compare",
+        col1_name=bait1.name, col2_name=bait2.name,
+        rows=rows,
+    )
 
 
 def build_npc_embed(npc) -> discord.Embed:
-    embed = discord.Embed(title=npc.name, color=0xb967ff)
+    embed = discord.Embed(title=npc.name, color=NPC_COLOR)
     embed.set_author(name="\U0001f464 NPC")
+    embed.timestamp = discord.utils.utcnow()
     if getattr(npc, "imageURL", None):
         embed.set_thumbnail(url=npc.imageURL)
 
     extra = getattr(npc, "extra", {})
-    lines: list[str] = []
 
     for key in ("description", "flavor", "text"):
         desc = extra.get(key) if hasattr(extra, "get") else None
         if desc:
-            lines += [f'*"{desc}"*', ""]
+            embed.description = f'*"{desc}"*'
             break
 
     loc_data = extra.get("locations") if hasattr(extra, "get") else None
     if loc_data:
-        lines += [_SEP, "**\U0001f4cd FOUND IN**"]
         if isinstance(loc_data, list):
-            lines.append("  \u00b7  ".join(str(l) for l in loc_data))
+            loc_text = "  \u00b7  ".join(str(l) for l in loc_data)
         else:
-            lines.append(str(loc_data))
-    lines.append(_SEP)
+            loc_text = str(loc_data)
+        embed.add_field(name="\U0001f4cd Found In", value=loc_text, inline=False)
 
-    embed.description = "\n".join(lines)[:4096] if lines else "No additional data available."
     embed.set_footer(text=f"Internal ID: {getattr(npc, 'id', '?')}")
     return embed
 
@@ -627,6 +642,7 @@ def build_profile_embed(user_row, member, dc=None) -> discord.Embed:
     embed = discord.Embed(color=0x5865F2)
     embed.set_author(name="\U0001f464 Profile")
     embed.title = getattr(member, "display_name", str(member))
+    embed.timestamp = discord.utils.utcnow()
     if hasattr(member, "display_avatar") and member.display_avatar:
         embed.set_thumbnail(url=str(member.display_avatar.url))
 

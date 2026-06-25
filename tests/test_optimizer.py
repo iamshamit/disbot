@@ -38,7 +38,7 @@ def _make_dc():
 
 def test_score_setup_sums_rarity_weights():
     from utils.optimizer import score_setup
-    from fishing_engine import RARITY_WEIGHTS
+    from utils.fish_data import RARITY_WEIGHTS
     dc = _make_dc()
     # At hour 3: bass (Common=14.5, rod.max=2) + koi (Rare=6.5, rod.max=3)
     score = score_setup(dc, "fishing-rod", "ocean", 3)

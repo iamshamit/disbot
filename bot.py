@@ -43,10 +43,11 @@ class DankFishingBot(commands.Bot):
         self.autocomplete = AutocompleteIndex(self.dank_client)
         await self._load_cogs()
         self.tree.on_error = self._tree_error_handler
-        if config.COMMAND_GUILD_ID:
-            guild = discord.Object(id=int(config.COMMAND_GUILD_ID))
-            self.tree.copy_global_to(guild=guild)
-            await self.tree.sync(guild=guild)
+        if config.COMMAND_GUILD_IDS:
+            for guild_id in config.COMMAND_GUILD_IDS:
+                guild = discord.Object(id=guild_id)
+                self.tree.copy_global_to(guild=guild)
+                await self.tree.sync(guild=guild)
         else:
             await self.tree.sync()
 

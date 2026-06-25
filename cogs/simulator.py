@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import json as _json
 from datetime import datetime, timezone
 import aiohttp
@@ -6,8 +7,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.embeds import EmbedBuilder, _ROMAN, emoji_from_url
-from fishing_engine import local_simulate, API_FALLBACK_BAITS, FallbackBaitError, creature_eligible
+from utils.embeds import EmbedBuilder, _ROMAN, emoji_from_url, loading_embed
+from utils.fish_data import creature_eligible
 
 SKILL_CATEGORIES_ORDER = ["Economy", "Nature", "Science", "Social"]
 
@@ -22,6 +23,7 @@ _SIM_HEADERS = {
     "Origin": "https://dankmemer.lol",
     "Referer": "https://dankmemer.lol/fishing/simulator",
     "Content-Type": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
 }
 
 
@@ -567,22 +569,9 @@ class SimulatorView(discord.ui.View):
     @discord.ui.button(label="🔄 Calculate", style=discord.ButtonStyle.primary, row=4)
     async def calculate_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
+        await interaction.edit_original_response(embed=loading_embed("Simulating catch rates..."))
         user_row = await self.db.get_or_create_user(str(self.member.id))
-        use_api = self._bait_id in API_FALLBACK_BAITS
         try:
-            if use_api:
-                data = await call_simulator_api(self._build_payload(user_row))
-            else:
-                data = local_simulate(
-                    self.dc,
-                    location_id=self._loc_id,
-                    tool_id=self._tool_id,
-                    bait_id=self._bait_id,
-                    hour=self._hour,
-                    bosses=bool(user_row["boss_unlock"]),
-                    angler_tuesday=self._angler_tuesday,
-                )
-        except FallbackBaitError:
             data = await call_simulator_api(self._build_payload(user_row))
         except Exception as exc:
             await interaction.followup.send(
@@ -671,6 +660,27 @@ class PeakHoursView(discord.ui.View):
             key=lambda c: c.name,
         )
 
+    def _build_payload_for_hour(self, user_row, hour: int) -> dict:
+        now = datetime.now(timezone.utc)
+        ts = int(now.replace(hour=hour, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        return {
+            "locationID": self._loc_id,
+            "toolID": self._tool_id,
+            "baitsIDs": [],
+            "time": ts,
+            "events": [],
+            "bosses": bool(user_row["boss_unlock"]),
+            "skills": {},
+            "bonusBossMultiplier": 1,
+            "bonusMythicalMultiplier": 1,
+            "forceTrash": False,
+            "mythicalFishID": None,
+            "discoveredCreatures": None,
+            "anglerTuesday": False,
+            "invasion": None,
+            "locationWinner": False,
+        }
+
     def _build_selects(self) -> None:
         for item in list(self.children):
             if isinstance(item, discord.ui.Select):
@@ -739,16 +749,27 @@ class PeakHoursView(discord.ui.View):
             )
             return
         await interaction.response.defer()
+        await interaction.edit_original_response(embed=loading_embed("Fetching peak hours..."))
         try:
             user_row = await self.db.get_or_create_user(str(self.member.id))
-            bosses = bool(user_row["boss_unlock"])
             results = []
-            for hour in range(24):
-                data = local_simulate(
-                    self.dc, location_id=self._loc_id, tool_id=self._tool_id,
-                    bait_id=None, hour=hour, bosses=bosses,
-                )
-                results.append((hour, data))
+            batch_size = 5
+            hours = list(range(24))
+            for i in range(0, 24, batch_size):
+                batch = hours[i:i + batch_size]
+                tasks = [call_simulator_api(self._build_payload_for_hour(user_row, h)) for h in batch]
+                batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+                for hour, result in zip(batch, batch_results):
+                    if isinstance(result, Exception):
+                        results.append((hour, {"failChance": 0, "npcChance": 0, "table": [], "variants": {}}))
+                    else:
+                        results.append((hour, result))
+                if i + batch_size < 24:
+                    progress_h = min(i + batch_size, 24)
+                    await interaction.edit_original_response(
+                        embed=loading_embed(f"Fetching peak hours... {progress_h}/24")
+                    )
+                    await asyncio.sleep(2)
         except Exception as exc:
             await interaction.followup.send(
                 embed=EmbedBuilder.error("Error", f"Could not calculate: {exc}"),

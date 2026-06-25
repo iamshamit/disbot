@@ -811,9 +811,9 @@ def test_fish_embed_tools_section_present():
         locations=["loc_low", "loc_high"],
     )
     embed = build_fish_embed(c, dc)
-    assert "TOOLS" in (embed.description or "")
-    assert "Fishing Rod" in (embed.description or "")
-    assert "Harpoon" in (embed.description or "")
+    text = "\n".join(f.value or "" for f in embed.fields)
+    assert "Fishing Rod" in text
+    assert "Harpoon" in text
 
 
 def test_fish_embed_best_tool_marked():
@@ -824,12 +824,16 @@ def test_fish_embed_best_tool_marked():
         locations=["loc_low"],
     )
     embed = build_fish_embed(c, dc)
-    desc = embed.description or ""
     # Harpoon has max=3, Fishing Rod has max=1 — only Harpoon should be marked Best
-    harpoon_line = next((l for l in desc.splitlines() if "Harpoon" in l), "")
-    rod_line = next((l for l in desc.splitlines() if "Fishing Rod" in l), "")
-    assert "⭐" in harpoon_line
-    assert "⭐" not in rod_line
+    tools_field = next((f for f in embed.fields if "Tools" in (f.name or "")), None)
+    assert tools_field is not None
+    assert "\u2b50" in tools_field.value
+    # Verify the star is on the harpoon line, not the rod line
+    lines = tools_field.value.splitlines()
+    harpoon_line = next((l for l in lines if "Harpoon" in l), "")
+    rod_line = next((l for l in lines if "Fishing Rod" in l), "")
+    assert "\u2b50" in harpoon_line
+    assert "\u2b50" not in rod_line
 
 
 def test_fish_embed_best_location_lowest_fail():
@@ -840,10 +844,10 @@ def test_fish_embed_best_location_lowest_fail():
         locations=["loc_low", "loc_high"],
     )
     embed = build_fish_embed(c, dc)
-    desc = embed.description or ""
     # Best Location = loc_low (failChance=5), not loc_high (failChance=20)
-    assert "Easy Beach" in desc
-    assert "Best Location" in desc
+    loc_field = next((f for f in embed.fields if "Location" in (f.name or "")), None)
+    assert loc_field is not None
+    assert "Easy Beach" in loc_field.value
 
 
 # ---------------------------------------------------------------------------

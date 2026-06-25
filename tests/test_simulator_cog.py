@@ -266,51 +266,21 @@ def _routing_db():
 
 
 @pytest.mark.asyncio
-async def test_calculate_uses_engine_for_local_bait(monkeypatch):
+async def test_calculate_always_uses_api(monkeypatch):
     from cogs.simulator import SimulatorView
     dc = make_dc()
     view = SimulatorView(_routing_db(), make_member(), dc,
                          initial_state={"location_id": "river", "tool_id": "rod",
                                         "bait_id": None, "event_id": None, "hour": 12})
-    called = {"engine": False, "api": False}
-
-    def fake_engine(*a, **k):
-        called["engine"] = True
-        return {"failChance": 10, "npcChance": 0.5, "table": [], "variants": {}}
+    api_called = {"v": False}
 
     async def fake_api(payload):
-        called["api"] = True
+        api_called["v"] = True
         return {"failChance": 0, "npcChance": 0, "table": [], "variants": {}}
 
-    monkeypatch.setattr(sim_mod, "local_simulate", fake_engine)
     monkeypatch.setattr(sim_mod, "call_simulator_api", fake_api)
     await view.calculate_btn.callback(make_interaction())
-    assert called["engine"] is True
-    assert called["api"] is False
-
-
-@pytest.mark.asyncio
-async def test_calculate_uses_api_for_fallback_bait(monkeypatch):
-    from cogs.simulator import SimulatorView
-    dc = make_dc()
-    view = SimulatorView(_routing_db(), make_member(), dc,
-                         initial_state={"location_id": "river", "tool_id": "rod",
-                                        "bait_id": "lucky-bait", "event_id": None, "hour": 12})
-    called = {"engine": False, "api": False}
-
-    def fake_engine(*a, **k):
-        called["engine"] = True
-        return {"failChance": 10, "npcChance": 0.5, "table": [], "variants": {}}
-
-    async def fake_api(payload):
-        called["api"] = True
-        return {"failChance": 0, "npcChance": 0, "table": [], "variants": {}}
-
-    monkeypatch.setattr(sim_mod, "local_simulate", fake_engine)
-    monkeypatch.setattr(sim_mod, "call_simulator_api", fake_api)
-    await view.calculate_btn.callback(make_interaction())
-    assert called["api"] is True
-    assert called["engine"] is False
+    assert api_called["v"] is True
 
 
 # --- build_fish_peak_embed ---
@@ -365,14 +335,15 @@ async def test_peak_hours_view_show_btn_sweeps_24_hours(monkeypatch):
                                    "boss": False, "mythical": False, "rarity": "Common"}
     hours_seen = []
 
-    def fake_sim(dc_, *, location_id, tool_id, bait_id, hour, bosses=False, angler_tuesday=False):
+    async def fake_api(payload):
+        hour = (payload["time"] // 3600000) % 24
         hours_seen.append(hour)
         return {"failChance": 10, "npcChance": 0.5,
                 "table": [{"chance": 18.0, "baseChance": 18.0,
                            "value": {"type": "fish-creature", "creatureID": "bass"}}],
                 "variants": {}}
 
-    monkeypatch.setattr(sim_mod, "local_simulate", fake_sim)
+    monkeypatch.setattr(sim_mod, "call_simulator_api", fake_api)
     db = _routing_db()
     view = PeakHoursView(db, make_member(), dc, initial_loc_id="river", initial_tool_id="rod")
     view._fish_id = "bass"
@@ -397,7 +368,7 @@ async def test_autosave_calls_update_user_with_names(monkeypatch):
     view._event_id = "2xtokens"
 
     fake_data = {"failChance": 10.0, "npcChance": 2.0, "table": [], "variants": {}}
-    monkeypatch.setattr("cogs.simulator.local_simulate", lambda *a, **kw: fake_data)
+    monkeypatch.setattr("cogs.simulator.call_simulator_api", AsyncMock(return_value=fake_data))
 
     inter = make_interaction()
     await view.calculate_btn.callback(inter)
@@ -493,7 +464,7 @@ async def test_statistics_btn_enabled_after_calculate(monkeypatch):
     assert stats_btn.disabled is True
 
     fake_data = {"failChance": 10.0, "npcChance": 2.0, "table": [], "variants": {}}
-    monkeypatch.setattr("cogs.simulator.local_simulate", lambda *a, **kw: fake_data)
+    monkeypatch.setattr("cogs.simulator.call_simulator_api", AsyncMock(return_value=fake_data))
 
     inter = make_interaction()
     await view.calculate_btn.callback(inter)
