@@ -15,17 +15,17 @@ logger = logging.getLogger(__name__)
 
 DANK_MEMER_ID = 270904126974590976
 
-# Equipment lines: `N / M` :progress_emotes: :item_emote: Item Name
-_EQUIP_RE = re.compile(r'`[^`]+`\s+(?::[^:]+:)+\s+:[^:]+:\s+([^:\n]+)')
-# Location line after **Current Location:**
-_LOC_RE = re.compile(r'\*\*Current Location:\*\*\n:[^:]+:\s+(.+)')
-# Skill lines: one or more :emote: followed by skill name (+ optional Roman numeral)
-_SKILL_LINE_RE = re.compile(r'^(?::[^:]+:)+\s+(.+?)\s*$', re.MULTILINE)
 # Heading: ### Title
 _HEADING_RE = re.compile(r'^#{1,3}\s+(.+?)(?:\n|$)')
+# Both <:name:id> and :name: emote formats
+_EMOTE_RE = re.compile(r'<:[^:]+:\d+>|:[^:\s<>]+:')
 
 _ROMAN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5,
           "VI": 6, "VII": 7, "VIII": 8, "IX": 9}
+
+
+def _strip_emotes(s: str) -> str:
+    return _EMOTE_RE.sub('', s).strip()
 
 
 def _extract_text(message: discord.Message) -> str:
@@ -50,12 +50,32 @@ def _heading(text: str) -> str:
 
 
 def _parse_fishing_text(text: str) -> dict[str, str | None]:
-    equip = _EQUIP_RE.findall(text)
-    loc_m = _LOC_RE.search(text)
+    equip: list[str] = []
+    location: str | None = None
+    in_equip = in_loc = False
+
+    for line in text.split('\n'):
+        s = line.strip()
+        if 'Current Equipment:' in s:
+            in_equip, in_loc = True, False
+        elif 'Bucket Space:' in s:
+            in_equip, in_loc = False, False
+        elif 'Current Location:' in s:
+            in_equip, in_loc = False, True
+        elif 'Active Events:' in s:
+            in_equip, in_loc = False, False
+        elif in_equip and re.search(r'\d+\s*/\s*\d+', s):
+            name = _strip_emotes(re.sub(r'\d+\s*/\s*\d+', '', s))
+            if name:
+                equip.append(name)
+        elif in_loc and s:
+            location = _strip_emotes(s)
+            in_loc = False
+
     return {
-        "tool": equip[0].strip() if len(equip) >= 1 else None,
-        "bait": equip[1].strip() if len(equip) >= 2 else None,
-        "location": loc_m.group(1).strip() if loc_m else None,
+        "tool": equip[0] if equip else None,
+        "bait": equip[1] if len(equip) > 1 else None,
+        "location": location,
     }
 
 
@@ -66,14 +86,18 @@ def _parse_skills_text(text: str, dc) -> dict[str, int]:
             name_to_base[s["name"].lower()] = s["base"]
 
     result: dict[str, int] = {}
-    for m in _SKILL_LINE_RE.finditer(text):
-        raw = m.group(1).strip()
-        parts = raw.rsplit(" ", 1)
+    for line in text.split('\n'):
+        # lines with emotes followed by skill name
+        if not _EMOTE_RE.search(line):
+            continue
+        clean = _strip_emotes(line)
+        if not clean or not clean[0].isupper():
+            continue
+        parts = clean.rsplit(' ', 1)
         if len(parts) == 2 and parts[1] in _ROMAN:
             name, tier = parts[0], _ROMAN[parts[1]]
         else:
-            name, tier = raw, 0
-
+            name, tier = clean, 0
         base = name_to_base.get(name.lower())
         if base and tier > 0:
             result[base] = tier
