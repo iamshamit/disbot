@@ -7,8 +7,9 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.embeds import EmbedBuilder, _ROMAN, emoji_from_url, loading_embed
+from utils.embeds import EmbedBuilder, _ROMAN, loading_embed
 from utils.fish_data import creature_eligible
+import utils.app_emojis as _ae
 
 SKILL_CATEGORIES_ORDER = ["Economy", "Nature", "Science", "Social"]
 
@@ -64,10 +65,14 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
         val = entry.get("value", {})
         if val.get("type") == "fish-creature":
             cid = val.get("creatureID", "")
-            name = dc.fish_by_id[cid].name if cid in dc.fish_by_id else cid
+            fish_name = dc.fish_by_id[cid].name if cid in dc.fish_by_id else cid
+            icon = _ae.get(cid)
+            name = (str(icon) + " " if icon else "") + fish_name
         elif val.get("type") == "fish-bait":
             bid = val.get("baitID", "")
-            name = dc.bait_by_id[bid].name if bid in dc.bait_by_id else bid
+            bait_name = dc.bait_by_id[bid].name if bid in dc.bait_by_id else bid
+            icon = _ae.get(bid)
+            name = (str(icon) + " " if icon else "") + bait_name
         elif val.get("type") == "loot":
             reward = val.get("reward") or {}
             item_id = reward.get("item")
@@ -100,6 +105,8 @@ def _utc_hour_ts(hour: int) -> int:
 def build_fish_peak_embed(fish_id: str, results: list, dc) -> discord.Embed:
     """Render a per-fish 24-hour catch% sweep, flagging the peak hour(s)."""
     fish_name = dc.fish_by_id[fish_id].name if fish_id in dc.fish_by_id else fish_id
+    _fish_icon = _ae.get(fish_id)
+    _fish_label = (str(_fish_icon) + "  " if _fish_icon else "") + fish_name
 
     hourly = []
     for hour, data in results:
@@ -112,7 +119,7 @@ def build_fish_peak_embed(fish_id: str, results: list, dc) -> discord.Embed:
         hourly.append((hour, entry["chance"] if entry else 0.0))
 
     if not hourly or all(c == 0 for _, c in hourly):
-        embed = discord.Embed(title=f"📈 {fish_name}", color=0x5865F2)
+        embed = discord.Embed(title=f"📈 {_fish_label}", color=0x5865F2)
         embed.set_author(name="🎣 Peak Hours")
         embed.description = "This fish isn't catchable with the selected setup."
         return embed
@@ -126,7 +133,7 @@ def build_fish_peak_embed(fish_id: str, results: list, dc) -> discord.Embed:
         f"<t:{_utc_hour_ts(h)}:t> `{c:5.1f}%`{' ⭐' if c == best_chance else ''}"
         for h, c in hourly
     ]
-    embed = discord.Embed(title=f"📈 {fish_name}", color=0x5865F2)
+    embed = discord.Embed(title=f"📈 {_fish_label}", color=0x5865F2)
     embed.set_author(name="🎣 Peak Hours")
     embed.description = (
         f"Peak: **<t:{_utc_hour_ts(best_hour)}:t>** — **{best_chance:.1f}%**\n"
@@ -569,7 +576,7 @@ class SimulatorView(discord.ui.View):
 
         loc_opts = [discord.SelectOption(label="— No Location —", value="__none__", default=self._loc_id is None)] + [
             discord.SelectOption(label=l.name, value=l.id, default=l.id == self._loc_id,
-                                 emoji=emoji_from_url(getattr(l, "imageURL", None)))
+                                 emoji=_ae.get(l.id))
             for l in sorted(self.dc.location_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._loc_sel = discord.ui.Select(placeholder="📍 Location…", options=loc_opts, min_values=0, max_values=1, row=0)
@@ -578,7 +585,7 @@ class SimulatorView(discord.ui.View):
 
         tool_opts = [discord.SelectOption(label="— No Tool —", value="__none__", default=self._tool_id is None)] + [
             discord.SelectOption(label=t.name, value=t.id, default=t.id == self._tool_id,
-                                 emoji=emoji_from_url(getattr(t, "imageURL", None)))
+                                 emoji=_ae.get(t.id))
             for t in sorted(self.dc.tool_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._tool_sel = discord.ui.Select(placeholder="🔧 Tool…", options=tool_opts, min_values=0, max_values=1, row=1)
@@ -600,7 +607,7 @@ class SimulatorView(discord.ui.View):
             current_baits = [b for b in [self._bait_id, self._bait2_id] if b]
             bait_opts = [discord.SelectOption(label="— No Bait —", value="__none__", default=not current_baits)] + [
                 discord.SelectOption(label=b.name, value=b.id, default=b.id in current_baits,
-                                     emoji=emoji_from_url(getattr(b, "imageURL", None)))
+                                     emoji=_ae.get(b.id))
                 for b in source
             ]
             self._bait_sel = discord.ui.Select(placeholder=bait_label, options=bait_opts, min_values=0, max_values=max_bait, row=2)
@@ -609,7 +616,7 @@ class SimulatorView(discord.ui.View):
 
         event_opts = [discord.SelectOption(label="— No Event —", value="__none__", default=self._event_id is None)] + [
             discord.SelectOption(label=e.name, value=e.id, default=e.id == self._event_id,
-                                 emoji=emoji_from_url(getattr(e, "imageURL", None)))
+                                 emoji=_ae.get(e.id))
             for e in sorted(self.dc.event_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._event_sel = discord.ui.Select(placeholder="🎉 Event…", options=event_opts, min_values=0, max_values=1, row=3)
@@ -811,7 +818,7 @@ class PeakHoursView(discord.ui.View):
 
         loc_opts = [discord.SelectOption(label="— No Location —", value="__none__", default=self._loc_id is None)] + [
             discord.SelectOption(label=l.name, value=l.id, default=l.id == self._loc_id,
-                                 emoji=emoji_from_url(getattr(l, "imageURL", None)))
+                                 emoji=_ae.get(l.id))
             for l in sorted(self.dc.location_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._loc_sel = discord.ui.Select(placeholder="📍 Location…", options=loc_opts, min_values=0, max_values=1, row=0)
@@ -820,7 +827,7 @@ class PeakHoursView(discord.ui.View):
 
         tool_opts = [discord.SelectOption(label="— No Tool —", value="__none__", default=self._tool_id is None)] + [
             discord.SelectOption(label=t.name, value=t.id, default=t.id == self._tool_id,
-                                 emoji=emoji_from_url(getattr(t, "imageURL", None)))
+                                 emoji=_ae.get(t.id))
             for t in sorted(self.dc.tool_by_id.values(), key=lambda x: x.name)[:24]
         ]
         self._tool_sel = discord.ui.Select(placeholder="🔧 Tool…", options=tool_opts, min_values=0, max_values=1, row=1)
@@ -831,7 +838,7 @@ class PeakHoursView(discord.ui.View):
         if fish:
             fish_opts = [discord.SelectOption(label="— Select a fish —", value="__none__", default=self._fish_id is None)] + [
                 discord.SelectOption(label=f.name, value=f.id, default=f.id == self._fish_id,
-                                     emoji=emoji_from_url(getattr(f, "imageURL", None)))
+                                     emoji=_ae.get(f.id))
                 for f in fish[:24]
             ]
             self._fish_sel = discord.ui.Select(placeholder="🐟 Fish…", options=fish_opts, min_values=0, max_values=1, row=2)

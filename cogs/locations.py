@@ -8,8 +8,8 @@ from utils.embeds import (
     build_location_embed,
     build_locations_list_embed,
     build_fish_embed,
-    emoji_from_url,
 )
+import utils.app_emojis as _ae
 from utils.views import DynamicPaginationView
 from utils.formatters import is_available_now, rarity_emoji, rarity_rank
 
@@ -85,13 +85,12 @@ class LocationView(discord.ui.View):
         for c in creatures_sorted:
             rarity = c.extra.get("rarity", "Common")
             avail = "✅" if is_available_now(c) else "❌"
-            fish_emoji = emoji_from_url(getattr(c, "imageURL", None))
             options.append(
                 discord.SelectOption(
                     label=c.name[:100],
                     value=c.id,
                     description=f"{rarity}  ·  {avail} now",
-                    emoji=fish_emoji or rarity_emoji(rarity),
+                    emoji=_ae.get(c.id) or rarity_emoji(rarity),
                 )
             )
         select = discord.ui.Select(

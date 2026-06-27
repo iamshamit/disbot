@@ -92,7 +92,9 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
     full_day = time_data.get("full_day", False)
     variants = extra.get("variants") or []
 
-    embed = discord.Embed(title=creature.name, color=rarity_color(rarity, boss=boss))
+    _e = _ae.get(creature.id)
+    _title = (str(_e) + "  " if _e else "") + creature.name
+    embed = discord.Embed(title=_title, color=rarity_color(rarity, boss=boss))
     embed.set_author(name="\U0001f41f Fish Encyclopedia")
     if creature.imageURL:
         embed.set_thumbnail(url=creature.imageURL)
@@ -412,7 +414,8 @@ def build_locations_list_embed(
 
 def build_tool_embed(tool, dc=None) -> discord.Embed:
     extra = tool.extra
-    embed = discord.Embed(title=tool.name, color=TOOL_COLOR)
+    _e = _ae.get(tool.id)
+    embed = discord.Embed(title=(str(_e) + "  " if _e else "") + tool.name, color=TOOL_COLOR)
     embed.set_author(name="\U0001f527 Tool")
     embed.timestamp = discord.utils.utcnow()
     if tool.imageURL:
@@ -464,7 +467,8 @@ def build_tool_embed(tool, dc=None) -> discord.Embed:
 
 def build_bait_embed(bait) -> discord.Embed:
     extra = bait.extra
-    embed = discord.Embed(title=bait.name, color=BAIT_COLOR)
+    _e = _ae.get(bait.id)
+    embed = discord.Embed(title=(str(_e) + "  " if _e else "") + bait.name, color=BAIT_COLOR)
     embed.set_author(name="\U0001fab1 Bait")
     embed.timestamp = discord.utils.utcnow()
     if bait.imageURL:
