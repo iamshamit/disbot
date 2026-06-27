@@ -117,6 +117,11 @@ class ListenerCog(commands.Cog):
             await db.get_or_create_user(user_id)
             await db.update_user(user_id, **updates)
             logger.info("Auto-synced fishing setup for user %s: %s", user_id, updates)
+            parts = [f"**Tool:** {updates['current_tool']}" if "current_tool" in updates else None,
+                     f"**Bait:** {updates['current_bait']}" if "current_bait" in updates else None,
+                     f"**Location:** {updates['favorite_location']}" if "favorite_location" in updates else None]
+            summary = "  ·  ".join(p for p in parts if p)
+            confirm = await message.channel.send(f"✅ Synced your fishing setup — {summary}", delete_after=6)
         except Exception:
             logger.exception("Failed to auto-sync fishing data for user %s", user_id)
 
@@ -134,6 +139,7 @@ class ListenerCog(commands.Cog):
             await db.get_or_create_user(user_id)
             await db.update_user(user_id, skills=_json.dumps(skills))
             logger.info("Auto-synced %d skills for user %s", len(skills), user_id)
+            await message.channel.send(f"✅ Synced {len(skills)} skills to your profile", delete_after=6)
         except Exception:
             logger.exception("Failed to auto-sync skills for user %s", user_id)
 
