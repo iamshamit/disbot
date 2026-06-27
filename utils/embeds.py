@@ -1,6 +1,7 @@
 import discord
 import json as _skills_json
 import random as _random
+import utils.app_emojis as _ae
 
 
 class EmbedBuilder:
@@ -276,7 +277,8 @@ def build_fishlist_embed(
             badges += " \ud83d\udc51 BOSS"
         if mythical:
             badges += " \u2728 MYTHICAL"
-        rem = rarity_emoji(rarity)
+        app_emoji = _ae.get(c.id)
+        rem = str(app_emoji) if app_emoji else rarity_emoji(rarity)
         lines.append(f"{rem} **{c.name}**{badges}  \u00b7  {avail} now")
 
     embed.description = "\n".join(lines) if lines else "*No fish match this filter.*"
@@ -289,7 +291,9 @@ def build_location_embed(location, dank_client) -> discord.Embed:
     disabled = extra.get("disabled", False)
     temporary = extra.get("temporary", False)
 
-    embed = discord.Embed(title=location.name, color=LOCATION_COLOR)
+    loc_emoji = _ae.get(location.id)
+    title = (str(loc_emoji) + "  " if loc_emoji else "") + location.name
+    embed = discord.Embed(title=title, color=LOCATION_COLOR)
     embed.set_author(name="\U0001f4cd Location")
     embed.timestamp = discord.utils.utcnow()
     thumb = extra.get("thumbnailURL") or getattr(location, "imageURL", None)
@@ -392,7 +396,8 @@ def build_locations_list_embed(
         extra = loc.extra
         fish_count = len(extra.get("creatures") or [])
         fail = extra.get("failChance", 0)
-        icon = "\ud83d\udccd"
+        app_emoji = _ae.get(loc.id)
+        icon = str(app_emoji) if app_emoji else "\ud83d\udccd"
         badges = ""
         if extra.get("temporary"):
             badges += " \ud83d\udd34 Temp"

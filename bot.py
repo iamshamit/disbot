@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import config
+import utils.app_emojis as _ae
 from dankmemer_client import DankMemerGameClient
 from utils.db import Database
 from utils.logging_config import setup_logging
@@ -40,6 +41,9 @@ class DankFishingBot(commands.Bot):
             cache_ttl_hours=config.DANKMEMER_CACHE_TTL_HOURS
         )
         await self.dank_client.connect()
+        n = _ae.load()
+        if n:
+            logger.info("Loaded %d application emojis", n)
         self.autocomplete = AutocompleteIndex(self.dank_client)
         await self._load_cogs()
         self.tree.on_error = self._tree_error_handler

@@ -7,6 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.embeds import EmbedBuilder, loading_embed
+import utils.app_emojis as _ae
 from utils.optimizer import best_setups, score_setup, session_windows
 from utils.fish_data import creature_eligible
 
@@ -121,7 +122,9 @@ async def _run_fish_optimizer(dc, fish, hour: int) -> list[dict[str, Any]]:
 
 
 def _build_optimizer_embed(results: list[dict], fish, dc, hour: int) -> discord.Embed:
-    embed = discord.Embed(title=f"🎯 Best Setup for {fish.name}", color=0x5865F2)
+    fish_emoji = _ae.get(fish.id)
+    fish_label = (str(fish_emoji) + "  " if fish_emoji else "") + fish.name
+    embed = discord.Embed(title=f"🎯 Best Setup for {fish_label}", color=0x5865F2)
     embed.set_author(name="🧠 Optimizer")
     embed.timestamp = discord.utils.utcnow()
 
@@ -137,9 +140,11 @@ def _build_optimizer_embed(results: list[dict], fish, dc, hour: int) -> discord.
     def _result_line(r: dict, rank: int) -> str:
         loc = dc.location_by_id.get(r["loc_id"])
         loc_name = loc.name if loc else r["loc_id"]
+        loc_emoji = _ae.get(r["loc_id"])
+        loc_label = (str(loc_emoji) + " " if loc_emoji else "📍 ") + loc_name
         tool_name = r["tool"].name
         bait_name = r["bait"].name if r.get("bait") else "No bait"
-        return f"**{rank}.** `{r['chance']:.1f}%`  {tool_name}  ·  🪱 {bait_name}  ·  📍 {loc_name}"
+        return f"**{rank}.** `{r['chance']:.1f}%`  {tool_name}  ·  🪱 {bait_name}  ·  {loc_label}"
 
     if regular:
         lines = [_result_line(r, i + 1) for i, r in enumerate(regular[:5])]
