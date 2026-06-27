@@ -19,8 +19,22 @@ _LOC_RE = re.compile(r'\*\*Current Location:\*\*\n<:[^>]+>\s+(.+)')
 # Skills embed: lines that start with one or more custom emotes followed by the skill name
 _SKILL_LINE_RE = re.compile(r'^(?:<:[^>]+>)+\s+(.+?)\s*$', re.MULTILINE)
 
+# Heading in embed description: ### Title or ## Title
+_HEADING_RE = re.compile(r'^#{1,3}\s+(.+?)(?:\n|$)')
+
 _ROMAN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5,
           "VI": 6, "VII": 7, "VIII": 8, "IX": 9}
+
+
+def _embed_heading(embed: discord.Embed) -> str:
+    """Return the effective title — embed.title or first heading in description."""
+    if embed.title:
+        return embed.title.strip()
+    if embed.description:
+        m = _HEADING_RE.match(embed.description)
+        if m:
+            return m.group(1).strip()
+    return ""
 
 
 def _parse_fishing_embed(description: str) -> dict[str, str | None]:
@@ -35,7 +49,6 @@ def _parse_fishing_embed(description: str) -> dict[str, str | None]:
 
 def _parse_skills_embed(description: str, dc) -> dict[str, int]:
     """Parse Fish Skills embed into {base_id: tier}. Tier 0 entries are omitted."""
-    # Build name → base lookup from game data
     name_to_base: dict[str, str] = {}
     for skills in dc.skill_categories.values():
         for s in skills:
@@ -44,7 +57,6 @@ def _parse_skills_embed(description: str, dc) -> dict[str, int]:
     result: dict[str, int] = {}
     for m in _SKILL_LINE_RE.finditer(description):
         raw = m.group(1).strip()
-        # Split trailing Roman numeral (tier) from name
         parts = raw.rsplit(" ", 1)
         if len(parts) == 2 and parts[1] in _ROMAN:
             name, tier = parts[0], _ROMAN[parts[1]]
@@ -58,13 +70,23 @@ def _parse_skills_embed(description: str, dc) -> dict[str, int]:
     return result
 
 
-def _get_user_id(message: discord.Message) -> str | None:
+async def _get_user_id(message: discord.Message) -> str | None:
+    # Slash command: interaction carries the user directly
     if getattr(message, "interaction", None) and message.interaction.user:
         return str(message.interaction.user.id)
-    if message.reference and message.reference.resolved:
+    # Prefix command: DM bot replies to the user's message
+    if message.reference:
         ref = message.reference.resolved
         if isinstance(ref, discord.Message) and not ref.author.bot:
             return str(ref.author.id)
+        # resolved is None when message isn't cached — fetch it
+        if message.reference.message_id:
+            try:
+                ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                if not ref_msg.author.bot:
+                    return str(ref_msg.author.id)
+            except Exception:
+                pass
     return None
 
 
@@ -85,14 +107,16 @@ class ListenerCog(commands.Cog):
         if not db or not dc or not dc.fish_by_id:
             return
 
-        if embed.title == "Fishing" and embed.description:
-            await self._sync_fishing(message, embed.description, db, dc)
+        heading = _embed_heading(embed)
+        description = embed.description or ""
 
-        elif embed.title == "Fish Skills" and embed.description:
-            await self._sync_skills(message, embed.description, db, dc)
+        if heading == "Fishing" and description:
+            await self._sync_fishing(message, description, db, dc)
+        elif heading == "Fish Skills" and description:
+            await self._sync_skills(message, description, db, dc)
 
     async def _sync_fishing(self, message, description: str, db, dc) -> None:
-        user_id = _get_user_id(message)
+        user_id = await _get_user_id(message)
         if not user_id:
             return
 
@@ -121,12 +145,12 @@ class ListenerCog(commands.Cog):
                      f"**Bait:** {updates['current_bait']}" if "current_bait" in updates else None,
                      f"**Location:** {updates['favorite_location']}" if "favorite_location" in updates else None]
             summary = "  ·  ".join(p for p in parts if p)
-            confirm = await message.channel.send(f"✅ Synced your fishing setup — {summary}", delete_after=6)
+            await message.channel.send(f"✅ Synced your fishing setup — {summary}", delete_after=6)
         except Exception:
             logger.exception("Failed to auto-sync fishing data for user %s", user_id)
 
     async def _sync_skills(self, message, description: str, db, dc) -> None:
-        user_id = _get_user_id(message)
+        user_id = await _get_user_id(message)
         if not user_id:
             return
         if not dc.skill_categories:

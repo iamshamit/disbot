@@ -451,19 +451,41 @@ class ExtrasView(discord.ui.View):
             discord.SelectOption(label="✅ Yes", value="1"),
             discord.SelectOption(label="❌ No", value="0"),
         ]
+
+        # Row 0-2: boolean toggles (auto-apply on change)
         self._tuesday_sel = discord.ui.Select(placeholder="📅 Angler Tuesday…", options=yn, min_values=0, max_values=1, row=0)
-        self._tuesday_sel.callback = self._defer
+        self._tuesday_sel.callback = self._on_tuesday
         self.add_item(self._tuesday_sel)
 
         self._invasion_sel = discord.ui.Select(placeholder="⚔️ Active Invasion…", options=yn, min_values=0, max_values=1, row=1)
-        self._invasion_sel.callback = self._defer
+        self._invasion_sel.callback = self._on_invasion
         self.add_item(self._invasion_sel)
 
         self._winner_sel = discord.ui.Select(placeholder="🏆 Location Winner…", options=yn, min_values=0, max_values=1, row=2)
-        self._winner_sel.callback = self._defer
+        self._winner_sel.callback = self._on_winner
         self.add_item(self._winner_sel)
 
-        # Enable variants button if sim data has variant entries
+        # Row 3: mythical fish selector
+        mythicals = [
+            f for f in parent.dc.fish_by_id.values()
+            if f.extra.get("mythical")
+        ] if parent.dc and parent.dc.fish_by_id else []
+        mythicals.sort(key=lambda f: f.name)
+        mythic_opts = [discord.SelectOption(label="— None —", value="none", default=parent._mythical_fish_id is None)]
+        for f in mythicals:
+            mythic_opts.append(discord.SelectOption(
+                label=f.name,
+                value=f.id,
+                emoji=_ae.get(f.id),
+                default=parent._mythical_fish_id == f.id,
+            ))
+        self._mythic_sel = discord.ui.Select(
+            placeholder="✨ Mythical Fish…", options=mythic_opts[:25], min_values=0, max_values=1, row=3
+        )
+        self._mythic_sel.callback = self._on_mythic
+        self.add_item(self._mythic_sel)
+
+        # Row 4: Set Time | ← Back | Variants
         has_variants = bool(
             parent._last_sim_data and any(
                 v.get("chance", 0) > 0
@@ -471,51 +493,34 @@ class ExtrasView(discord.ui.View):
                 for v in var_list
             )
         )
-        for item in self.children:
-            if isinstance(item, discord.ui.Button) and item.label == "✨ Variants":
-                item.disabled = not has_variants
-                break
+        variants_btn = discord.ui.Button(
+            label="✨ Variants", style=discord.ButtonStyle.secondary, row=4, disabled=not has_variants
+        )
+        variants_btn.callback = self._on_variants
+        self.add_item(variants_btn)
 
-    async def _defer(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer()
-
-    @discord.ui.button(label="🕐 Set Time", style=discord.ButtonStyle.secondary, row=3)
-    async def set_time_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(TimeModal(self.parent))
-
-    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=3)
-    async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _on_tuesday(self, interaction: discord.Interaction) -> None:
         if self._tuesday_sel.values:
             self.parent._angler_tuesday = self._tuesday_sel.values[0] == "1"
+        await interaction.response.defer()
+
+    async def _on_invasion(self, interaction: discord.Interaction) -> None:
         if self._invasion_sel.values:
             self.parent._invasion = self._invasion_sel.values[0] == "1"
+        await interaction.response.defer()
+
+    async def _on_winner(self, interaction: discord.Interaction) -> None:
         if self._winner_sel.values:
             self.parent._loc_winner = self._winner_sel.values[0] == "1"
-        await interaction.response.edit_message(embed=self.current_embed, view=self.parent)
-
-    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=3)
-    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=self.current_embed, view=self.parent)
-
-    @discord.ui.button(label="🪣 Live Loot", style=discord.ButtonStyle.secondary, row=3)
-    async def live_loot_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
-        try:
-            user_row = await self.parent.db.get_or_create_user(str(self.parent.member.id))
-            data = await call_simulator_api(self.parent._build_payload(user_row))
-        except Exception as exc:
-            await interaction.followup.send(
-                embed=EmbedBuilder.error("API error", f"Could not fetch loot: {exc}"),
-                ephemeral=True,
-            )
-            return
-        embed = build_sim_results_embed(data, self.parent._current_state(), self.parent.dc)
-        self.parent._last_embed = embed
-        self.parent._last_sim_data = data
-        await interaction.edit_original_response(embed=embed, view=self.parent)
 
-    @discord.ui.button(label="✨ Variants", style=discord.ButtonStyle.secondary, row=3, disabled=True)
-    async def variants_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def _on_mythic(self, interaction: discord.Interaction) -> None:
+        if self._mythic_sel.values:
+            val = self._mythic_sel.values[0]
+            self.parent._mythical_fish_id = None if val == "none" else val
+        await interaction.response.defer()
+
+    async def _on_variants(self, interaction: discord.Interaction) -> None:
         sim_data = self.parent._last_sim_data
         if not sim_data:
             await interaction.response.send_message(
@@ -524,6 +529,14 @@ class ExtrasView(discord.ui.View):
             return
         embed = _build_variants_embed(sim_data, self.parent.dc)
         await interaction.response.edit_message(embed=embed, view=VariantsView(self.parent))
+
+    @discord.ui.button(label="🕐 Set Time", style=discord.ButtonStyle.secondary, row=4)
+    async def set_time_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TimeModal(self.parent))
+
+    @discord.ui.button(label="← Back", style=discord.ButtonStyle.primary, row=4)
+    async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=self.current_embed, view=self.parent)
 
 
 class StatisticsView(discord.ui.View):
@@ -568,6 +581,7 @@ class SimulatorView(discord.ui.View):
         self._angler_tuesday: bool = False
         self._invasion: bool = False
         self._loc_winner: bool = False
+        self._mythical_fish_id: str | None = None
         self._last_embed: discord.Embed | None = None
         self._last_sim_data: dict | None = None
         self._has_dual_bait: bool = False
@@ -718,7 +732,7 @@ class SimulatorView(discord.ui.View):
             "bonusBossMultiplier": 1,
             "bonusMythicalMultiplier": 1,
             "forceTrash": False,
-            "mythicalFishID": None,
+            "mythicalFishID": self._mythical_fish_id,
             "discoveredCreatures": None,
             "anglerTuesday": self._angler_tuesday,
             "invasion": self._invasion,

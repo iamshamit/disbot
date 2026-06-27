@@ -136,7 +136,7 @@ async def test_simulator_view_delete_btn_deletes_message():
 # --- ExtrasView ---
 
 @pytest.mark.asyncio
-async def test_extras_view_save_updates_parent_state():
+async def test_extras_view_dropdowns_auto_apply():
     from cogs.simulator import SimulatorView, ExtrasView
     from utils.embeds import EmbedBuilder
     db = MagicMock()
@@ -145,17 +145,15 @@ async def test_extras_view_save_updates_parent_state():
     parent = SimulatorView(db, member, dc)
     current_embed = EmbedBuilder.info("Test", "")
     view = ExtrasView(parent, current_embed)
+    # Simulate Tuesday toggle
     view._tuesday_sel._values = ["1"]
-    view._winner_sel._values = ["1"]
     interaction = make_interaction()
-    await view.save_btn.callback(interaction)
+    await view._on_tuesday(interaction)
     assert parent._angler_tuesday is True
-    assert parent._loc_winner is True
-    interaction.response.edit_message.assert_called_once()
-
+    interaction.response.defer.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_extras_view_cancel_restores_without_change():
+async def test_extras_view_back_returns_to_parent():
     from cogs.simulator import SimulatorView, ExtrasView
     from utils.embeds import EmbedBuilder
     db = MagicMock()
@@ -164,8 +162,9 @@ async def test_extras_view_cancel_restores_without_change():
     parent = SimulatorView(db, member, dc)
     embed = EmbedBuilder.info("Test", "")
     view = ExtrasView(parent, embed)
+    back_btn = next(b for b in view.children if isinstance(b, discord.ui.Button) and "Back" in b.label)
     interaction = make_interaction()
-    await view.cancel_btn.callback(interaction)
+    await back_btn.callback(interaction)
     assert parent._angler_tuesday is False  # unchanged
     interaction.response.edit_message.assert_called_once()
 
