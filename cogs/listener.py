@@ -98,22 +98,36 @@ class ListenerCog(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         if message.author.id != DANK_MEMER_ID:
             return
+
+        logger.info(
+            "DM message received: embeds=%d ref=%s interaction=%s",
+            len(message.embeds),
+            bool(message.reference),
+            bool(getattr(message, "interaction", None)),
+        )
+
         if not message.embeds:
             return
 
         embed = message.embeds[0]
+        heading = _embed_heading(embed)
+        desc_preview = (embed.description or "")[:80].replace("\n", "\\n")
+        logger.info("DM embed: title=%r heading=%r desc_start=%r", embed.title, heading, desc_preview)
+
         db = self.bot.db
         dc = self.bot.dank_client
         if not db or not dc or not dc.fish_by_id:
+            logger.warning("Listener: db=%s dc=%s fish_loaded=%s", bool(db), bool(dc), bool(dc and dc.fish_by_id))
             return
 
-        heading = _embed_heading(embed)
         description = embed.description or ""
 
         if heading == "Fishing" and description:
             await self._sync_fishing(message, description, db, dc)
         elif heading == "Fish Skills" and description:
             await self._sync_skills(message, description, db, dc)
+        else:
+            logger.info("DM embed heading %r did not match Fishing or Fish Skills — skipping", heading)
 
     async def _sync_fishing(self, message, description: str, db, dc) -> None:
         user_id = await _get_user_id(message)
