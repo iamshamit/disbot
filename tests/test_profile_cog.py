@@ -518,15 +518,14 @@ async def test_skills_picker_view_shows_category_tabs():
     async def return_fn(inter): pass
     view = SkillsPickerView(db, member, dc, {}, return_fn)
     selects = [c for c in view.children if isinstance(c, discord.ui.Select)]
-    # First select is the mode selector (summary + categories)
     mode_sel = selects[0]
-    opt_labels = [o.label for o in mode_sel.options]
-    assert "Summary (all categories)" in opt_labels
-    assert "Economy" in opt_labels
-    assert "Nature" in opt_labels
+    opt_values = [o.value for o in mode_sel.options]
+    assert "summary" in opt_values
+    assert "cat:Economy" in opt_values
+    assert "cat:Nature" in opt_values
 
 @pytest.mark.asyncio
-async def test_skills_picker_save_writes_skills_to_db():
+async def test_skills_picker_autosave_writes_to_db():
     from cogs.simulator import SkillsPickerView
     import json
     db = MagicMock()
@@ -536,19 +535,19 @@ async def test_skills_picker_save_writes_skills_to_db():
         "Economy": [{"base": "haggler", "name": "Haggler", "max_tier": 3}],
     }
     member = make_member()
-    returned = []
-    async def return_fn(inter): returned.append(True)
+    async def return_fn(inter): pass
     view = SkillsPickerView(db, member, dc, {}, return_fn)
-    view._pending["haggler"] = 2
+    # Simulate selecting tier 2 via the tier callback
+    cb = view._make_tier_cb("haggler")
     interaction = make_interaction()
-    await view._save(interaction)
+    interaction.data = {"values": ["2"]}
+    await cb(interaction)
     db.update_user.assert_called_once()
     written = db.update_user.call_args.kwargs.get("skills")
     assert json.loads(written) == {"haggler": 2}
-    assert returned
 
 @pytest.mark.asyncio
-async def test_skills_picker_save_removes_tier_zero():
+async def test_skills_picker_autosave_removes_tier_zero():
     from cogs.simulator import SkillsPickerView
     import json
     db = MagicMock()
@@ -560,15 +559,15 @@ async def test_skills_picker_save_removes_tier_zero():
     member = make_member()
     async def return_fn(inter): pass
     view = SkillsPickerView(db, member, dc, {"haggler": 2}, return_fn)
-    view._pending["haggler"] = 0  # user cleared it
+    cb = view._make_tier_cb("haggler")
     interaction = make_interaction()
-    await view._save(interaction)
+    interaction.data = {"values": ["0"]}
+    await cb(interaction)
     written = db.update_user.call_args.kwargs.get("skills")
-    # haggler removed from JSON
     assert "haggler" not in (json.loads(written) if written else {})
 
 @pytest.mark.asyncio
-async def test_skills_picker_cancel_calls_return_fn():
+async def test_skills_picker_done_calls_return_fn():
     from cogs.simulator import SkillsPickerView
     db = MagicMock()
     dc = MagicMock()
@@ -578,7 +577,7 @@ async def test_skills_picker_cancel_calls_return_fn():
     async def return_fn(inter): returned.append(True)
     view = SkillsPickerView(db, member, dc, {}, return_fn)
     interaction = make_interaction()
-    await view._cancel(interaction)
+    await view._done(interaction)
     assert returned
 
 
