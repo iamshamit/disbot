@@ -82,8 +82,14 @@ def _parse_skills_text(text: str, dc) -> dict[str, int]:
 
 
 async def _get_user_id(message: discord.Message) -> str | None:
-    if getattr(message, "interaction", None) and message.interaction.user:
-        return str(message.interaction.user.id)
+    meta = getattr(message, "interaction_metadata", None)
+    if meta:
+        user = getattr(meta, "user", None)
+        if user:
+            return str(user.id)
+        user_id = getattr(meta, "user_id", None)
+        if user_id:
+            return str(user_id)
     if message.reference:
         ref = message.reference.resolved
         if isinstance(ref, discord.Message) and not ref.author.bot:
