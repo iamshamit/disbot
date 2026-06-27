@@ -174,12 +174,16 @@ class ListenerCog(commands.Cog):
 
     async def _sync_skills(self, message, text: str, db, dc) -> None:
         user_id = await _get_user_id(message)
+        await message.channel.send(f"[dbg skills] user_id={user_id!r}", delete_after=15)
         if not user_id:
             return
         if not dc.skill_categories:
+            await message.channel.send("[dbg skills] no skill_categories", delete_after=15)
             return
 
+        await message.channel.send(f"[dbg skills] text={text[50:300]!r}", delete_after=30)
         skills = _parse_skills_text(text, dc)
+        await message.channel.send(f"[dbg skills] found {len(skills)} skills: {list(skills.keys())[:5]}", delete_after=15)
         if not skills:
             return
         try:
