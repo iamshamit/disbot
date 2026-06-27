@@ -83,19 +83,7 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
             name = "Misc Loot"
         lines.append(f"`{chance:5.1f}%` (base `{base:.1f}%`) {name}")
     if lines:
-        value = "\n".join(lines)
-        if len(value) > 1024:
-            value = value[:1021] + "…"
-        embed.add_field(name="📊 Catch Table", value=value, inline=False)
-
-    var_lines = []
-    for cid, var_list in data.get("variants", {}).items():
-        name = dc.fish_by_id[cid].name if cid in dc.fish_by_id else cid
-        parts = [f"{v['type'].capitalize()}: {v['chance']:.1f}%" for v in var_list if v.get("chance", 0) > 0]
-        if parts:
-            var_lines.append(f"**{name}** — {' · '.join(parts)}")
-    if var_lines:
-        embed.add_field(name="✨ Variants", value="\n".join(var_lines[:10]), inline=False)
+        embed.add_field(name="📊 Catch Table", value="\n".join(lines), inline=False)
 
     return embed
 
@@ -428,6 +416,37 @@ class TimeModal(discord.ui.Modal, title="Set UTC Hour"):
             )
 
 
+def _build_variants_embed(sim_data: dict, dc) -> discord.Embed:
+    embed = discord.Embed(title="✨ Variants", color=0x5865F2)
+    embed.set_author(name="🎣 Simulator")
+    for cid, var_list in sim_data.get("variants", {}).items():
+        fish = dc.fish_by_id.get(cid)
+        name = fish.name if fish else cid
+        icon = _ae.get(cid)
+        label = (str(icon) + "  " if icon else "") + name
+        parts = [f"{v['type'].capitalize()}: {v['chance']:.1f}%" for v in var_list if v.get("chance", 0) > 0]
+        if parts:
+            embed.add_field(name=label, value="  ·  ".join(parts), inline=False)
+    if not embed.fields:
+        embed.description = "No variant data for this setup."
+    return embed
+
+
+class VariantsView(discord.ui.View):
+    def __init__(self, sim_view: "SimulatorView"):
+        super().__init__(timeout=120)
+        self.sim_view = sim_view
+
+    @discord.ui.button(label="← Back", style=discord.ButtonStyle.primary)
+    async def back_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=self.sim_view._last_embed, view=self.sim_view)
+
+    @discord.ui.button(label="🗑️ Delete", style=discord.ButtonStyle.danger)
+    async def delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        await interaction.message.delete()
+
+
 class ExtrasView(discord.ui.View):
     def __init__(self, parent: "SimulatorView", current_embed: discord.Embed):
         super().__init__(timeout=120)
@@ -449,6 +468,19 @@ class ExtrasView(discord.ui.View):
         self._winner_sel = discord.ui.Select(placeholder="🏆 Location Winner…", options=yn, min_values=0, max_values=1, row=2)
         self._winner_sel.callback = self._defer
         self.add_item(self._winner_sel)
+
+        # Enable variants button if sim data has variant entries
+        has_variants = bool(
+            parent._last_sim_data and any(
+                v.get("chance", 0) > 0
+                for var_list in parent._last_sim_data.get("variants", {}).values()
+                for v in var_list
+            )
+        )
+        for item in self.children:
+            if isinstance(item, discord.ui.Button) and item.label == "✨ Variants":
+                item.disabled = not has_variants
+                break
 
     async def _defer(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
@@ -485,7 +517,19 @@ class ExtrasView(discord.ui.View):
             return
         embed = build_sim_results_embed(data, self.parent._current_state(), self.parent.dc)
         self.parent._last_embed = embed
+        self.parent._last_sim_data = data
         await interaction.edit_original_response(embed=embed, view=self.parent)
+
+    @discord.ui.button(label="✨ Variants", style=discord.ButtonStyle.secondary, row=3, disabled=True)
+    async def variants_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        sim_data = self.parent._last_sim_data
+        if not sim_data:
+            await interaction.response.send_message(
+                embed=EmbedBuilder.error("No data", "Run Calculate first."), ephemeral=True
+            )
+            return
+        embed = _build_variants_embed(sim_data, self.parent.dc)
+        await interaction.response.edit_message(embed=embed, view=VariantsView(self.parent))
 
 
 class StatisticsView(discord.ui.View):

@@ -193,26 +193,22 @@ def test_build_sim_results_embed_shows_fail_and_npc():
     assert "Misc Loot" in full_text
 
 
-def test_build_sim_results_embed_shows_variants():
-    from cogs.simulator import build_sim_results_embed
+def test_build_variants_embed_shows_variants():
+    from cogs.simulator import _build_variants_embed
     dc = make_dc()
-    data = {
-        "failChance": 0,
-        "npcChance": 0,
-        "table": [],
+    sim_data = {
         "variants": {
             "bass": [
                 {"name": "unique", "type": "unique", "chance": 1.5},
                 {"name": "chroma", "type": "chroma", "chance": 0.5},
             ]
-        },
+        }
     }
-    state = {"location_id": "river", "tool_id": None, "bait_id": None, "event_id": None, "hour": 0}
-    embed = build_sim_results_embed(data, state, dc)
-    variant_field = next((f for f in embed.fields if "Variant" in f.name), None)
-    assert variant_field is not None
-    assert "Bass" in variant_field.value
-    assert "1.5" in variant_field.value
+    embed = _build_variants_embed(sim_data, dc)
+    assert embed.fields, "variants embed should have fields"
+    full = " ".join(f.name + " " + f.value for f in embed.fields)
+    assert "Bass" in full
+    assert "1.5" in full
 
 
 # --- call_simulator_api ---
