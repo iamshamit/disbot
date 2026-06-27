@@ -25,7 +25,7 @@ _ROMAN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5,
 
 
 def _strip_emotes(s: str) -> str:
-    return _EMOTE_RE.sub('', s).strip()
+    return ' '.join(_EMOTE_RE.sub('', s).split())
 
 
 def _extract_text(message: discord.Message) -> str:
