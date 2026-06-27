@@ -95,15 +95,22 @@ class ListenerCog(commands.Cog):
         self.bot = bot
 
     @commands.Cog.listener()
+    async def on_raw_message_create(self, payload: discord.RawMessageCreateEvent) -> None:
+        if payload.data.get("author", {}).get("id") != str(DANK_MEMER_ID):
+            return
+        comps = payload.data.get("components", [])
+        if not comps:
+            return
+        import json as _dbg_json
+        dump = _dbg_json.dumps(comps, indent=2)[:1800]
+        channel = self.bot.get_channel(payload.channel_id)
+        if channel:
+            await channel.send(f"[dbg raw]\n```json\n{dump}\n```", delete_after=60)
+
+    @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         if message.author.id != DANK_MEMER_ID:
             return
-        content_preview = (message.content or "")[:60]
-        comp_types = [c.type.value if hasattr(c, "type") else str(type(c)) for c in message.components]
-        await message.channel.send(
-            f"[dbg] embeds={len(message.embeds)} components={comp_types} content=`{content_preview!r}`",
-            delete_after=20,
-        )
         await self._process(message)
 
     @commands.Cog.listener()
