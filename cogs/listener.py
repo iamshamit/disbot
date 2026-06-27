@@ -126,16 +126,22 @@ class ListenerCog(commands.Cog):
             return
 
         if h == "Fishing":
+            await message.channel.send(f"[dbg] matched Fishing", delete_after=10)
             await self._sync_fishing(message, text, db, dc)
         elif h == "Fish Skills":
+            await message.channel.send(f"[dbg] matched Fish Skills", delete_after=10)
             await self._sync_skills(message, text, db, dc)
+        else:
+            await message.channel.send(f"[dbg] heading=`{h!r}` no match", delete_after=10)
 
     async def _sync_fishing(self, message, text: str, db, dc) -> None:
         user_id = await _get_user_id(message)
+        await message.channel.send(f"[dbg] user_id={user_id!r}", delete_after=10)
         if not user_id:
             return
 
         parsed = _parse_fishing_text(text)
+        await message.channel.send(f"[dbg] parsed={parsed}", delete_after=10)
         updates: dict[str, str] = {}
         if parsed["tool"]:
             t = dc.tool_by_name.get(parsed["tool"].lower())
@@ -150,6 +156,7 @@ class ListenerCog(commands.Cog):
             if loc:
                 updates["favorite_location"] = loc.name
 
+        await message.channel.send(f"[dbg] updates={updates}", delete_after=10)
         if not updates:
             return
         try:
