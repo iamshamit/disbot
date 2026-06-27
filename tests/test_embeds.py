@@ -49,8 +49,7 @@ def test_build_fish_embed_has_availability(creature):
     embed = build_fish_embed(creature, make_mock_client())
     text = _all_text(embed)
     assert "Availability" in text
-    assert "\u2590" in text  # bar prefix
-    assert "\u258c" in text  # bar suffix
+    assert "Available" in text or "Not available" in text
 
 def test_build_fish_embed_no_variants_section(creature):
     from utils.embeds import build_fish_embed

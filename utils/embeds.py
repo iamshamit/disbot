@@ -114,15 +114,17 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
     # Availability
     start = time_data.get("start")
     end = time_data.get("end")
+    avail_now = "\u2705 Available now" if is_available_now(creature) else "\u274c Not available now"
     if full_day:
-        avail_val = "\u2590" + "\u2588" * 24 + "\u258c  All Day"
+        avail_val = f"All Day  \u00b7  {avail_now}"
     elif isinstance(start, dt_time) and isinstance(end, dt_time):
-        bar = availability_bar(start.hour, end.hour, False)
-        avail_val = f"\u2590{bar}\u258c  {format_time_window(creature)}"
+        now_utc = datetime.now(timezone.utc)
+        def _ts(h: int, m: int) -> int:
+            return int(now_utc.replace(hour=h, minute=m, second=0, microsecond=0).timestamp())
+        avail_val = f"<t:{_ts(start.hour, start.minute)}:t> \u2014 <t:{_ts(end.hour, end.minute)}:t>  \u00b7  {avail_now}"
     else:
-        avail_val = "Unknown"
-    avail_now = "\u2705 Available" if is_available_now(creature) else "\u274c Not available"
-    embed.add_field(name="\u23f0 Availability", value=f"{avail_val}\nRight now: {avail_now}", inline=False)
+        avail_val = avail_now
+    embed.add_field(name="\u23f0 Availability", value=avail_val, inline=False)
 
     # Locations
     loc_ids = extra.get("locations") or []
@@ -145,35 +147,6 @@ def build_fish_embed(creature, dank_client) -> discord.Embed:
             else:
                 parts.append(f"\u2728 {v}")
         embed.add_field(name=f"\U0001f52e Variants ({len(variants)})", value="  \u00b7  ".join(parts), inline=False)
-
-    # Tools
-    tools_data = extra.get("tools") or {}
-    if tools_data and dank_client.tool_by_id:
-        best_max = max((v.get("max", 0) for v in tools_data.values()), default=0)
-        tool_lines = []
-        for tid, catch in tools_data.items():
-            t = dank_client.tool_by_id.get(tid)
-            if t is None:
-                continue
-            lo, hi = catch.get("min", 0), catch.get("max", 0)
-            star = "  \u2b50" if hi == best_max and best_max > 0 else ""
-            tool_lines.append(f"**{t.name}** \u2014 {lo}\u2013{hi}{star}")
-        if tool_lines:
-            embed.add_field(name=f"\U0001f527 Tools ({len(tool_lines)})", value="\n".join(tool_lines), inline=False)
-
-    # Best Location
-    best_loc = None
-    best_fail = None
-    for lid in loc_ids:
-        loc = dank_client.location_by_id.get(lid)
-        if loc is None:
-            continue
-        fail = loc.extra.get("failChance", 100) if hasattr(loc.extra, "get") else 100
-        if best_fail is None or fail < best_fail or (fail == best_fail and loc.name < best_loc.name):
-            best_fail = fail
-            best_loc = loc
-    if best_loc is not None:
-        embed.add_field(name="\U0001f4cd Best Location", value=f"{best_loc.name} (fail: {best_fail}%)", inline=True)
 
     embed.set_footer(text=f"Internal ID: {creature.id}")
     return embed
