@@ -140,6 +140,7 @@ class ListenerCog(commands.Cog):
         if not user_id:
             return
 
+        await message.channel.send(f"[dbg] text={text[50:250]!r}", delete_after=30)
         parsed = _parse_fishing_text(text)
         await message.channel.send(f"[dbg] parsed={parsed}", delete_after=10)
         updates: dict[str, str] = {}
