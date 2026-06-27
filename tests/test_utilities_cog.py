@@ -66,29 +66,6 @@ def _make_interaction():
     return inter
 
 
-# ── /rarity ─────────────────────────────────────────────────────────────────
-
-def test_rarity_embed_has_7_fields():
-    import cogs.utilities as u
-    dc = _make_dc()
-    with patch("cogs.utilities._utc_hour", return_value=12):
-        embed = u._build_rarity_embed(dc, hour=12)
-    assert len(embed.fields) == 7
-    field_names = [f.name for f in embed.fields]
-    for tier in ["Absurdly Common", "Very Common", "Common", "Regular",
-                 "Rare", "Very Rare", "Absurdly Rare"]:
-        assert tier in field_names
-
-
-def test_rarity_currently_catchable_uses_utc_hour():
-    import cogs.utilities as u
-    dc = _make_dc(fish=[_make_fish("bass", full_day=True, locations=["river"])])
-    embed = u._build_rarity_embed(dc, hour=5)
-    # bass is full_day=True so it should be in "Common" now count
-    common_field = next(f for f in embed.fields if f.name == "Common")
-    assert "Now: **1**" in common_field.value
-
-
 # ── /event ──────────────────────────────────────────────────────────────────
 
 def test_event_overview_paginates():

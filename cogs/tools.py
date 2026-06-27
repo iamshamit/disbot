@@ -3,36 +3,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.embeds import EmbedBuilder, build_tool_embed, build_toolcompare_embed
+from utils.embeds import EmbedBuilder, build_tool_embed
 
 _PRELOAD_MSG = "⏳ Data is still loading, please try again in a moment."
 _NOT_FOUND = "❌ No tool named **{name}** found."
 
-
-class ToolCompareModal(discord.ui.Modal, title="Compare Tool"):
-    second_tool: discord.ui.TextInput = discord.ui.TextInput(
-        label="Second tool name",
-        placeholder="e.g. Harpoon",
-        min_length=1,
-        max_length=60,
-    )
-
-    def __init__(self, first_tool, dank_client):
-        super().__init__()
-        self.first = first_tool
-        self.dc = dank_client
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        name = self.second_tool.value.strip()
-        second = self.dc.get_tool(name)
-        if second is None:
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Not found", _NOT_FOUND.format(name=name)), ephemeral=True
-            )
-            return
-        await interaction.response.edit_message(
-            embed=build_toolcompare_embed([self.first, second]), view=None
-        )
 
 
 class ToolView(discord.ui.View):
@@ -72,11 +47,7 @@ class ToolView(discord.ui.View):
             except Exception:
                 pass
 
-    @discord.ui.button(label="⚔️ Compare", style=discord.ButtonStyle.primary)
-    async def compare_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ToolCompareModal(self.tool, self.dc))
-
-    @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
+    @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True)
     async def fav_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if self._is_faved:
@@ -168,16 +139,6 @@ class ToolsCog(commands.Cog):
         if not self.bot.autocomplete:
             return []
         return self.bot.autocomplete.tool_choices(current)
-
-    @app_commands.command(name="toolcompare", description="Compare all fishing tools side by side")
-    async def toolcompare(self, interaction: discord.Interaction):
-        if not self._guard():
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Loading", _PRELOAD_MSG), ephemeral=True
-            )
-            return
-        tools = list(self.bot.dank_client.tool_by_id.values())
-        await interaction.response.send_message(embed=build_toolcompare_embed(tools))
 
 
 async def setup(bot: commands.Bot):

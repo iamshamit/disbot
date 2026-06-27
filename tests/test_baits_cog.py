@@ -1,4 +1,4 @@
-"""Tests for cogs/baits.py — BaitsCog, BaitView, BaitCompareModal."""
+"""Tests for cogs/baits.py — BaitsCog, BaitView."""
 from __future__ import annotations
 
 import pytest
@@ -146,71 +146,6 @@ async def test_bait_command_found_by_id():
 
 
 # ---------------------------------------------------------------------------
-# BaitsCog.baitcompare command
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_baitcompare_not_loaded_returns_error():
-    from cogs.baits import BaitsCog
-    bot = make_mock_bot(dank_client=None)
-    cog = BaitsCog(bot)
-    interaction = make_interaction()
-    await cog.baitcompare.callback(cog, interaction, bait1="Glitter Bait", bait2="Gold Bait")
-    interaction.response.send_message.assert_called_once()
-    assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
-
-
-@pytest.mark.asyncio
-async def test_baitcompare_bait1_not_found_returns_error():
-    from cogs.baits import BaitsCog
-    bot = make_mock_bot()
-    cog = BaitsCog(bot)
-    interaction = make_interaction()
-    await cog.baitcompare.callback(cog, interaction, bait1="NonExistent", bait2="Glitter Bait")
-    interaction.response.send_message.assert_called_once()
-    call_kwargs = interaction.response.send_message.call_args
-    assert call_kwargs.kwargs.get("ephemeral") is True
-    embed = call_kwargs.kwargs["embed"]
-    assert "NonExistent" in (embed.description or "") or "NonExistent" in (embed.title or "")
-
-
-@pytest.mark.asyncio
-async def test_baitcompare_bait2_not_found_returns_error():
-    from cogs.baits import BaitsCog
-    b1 = make_bait(id="glitter", name="Glitter Bait")
-    b2 = make_bait(id="gold", name="Gold Bait")
-    client = make_mock_dank_client(baits=[b1, b2])
-    bot = make_mock_bot(dank_client=client)
-    cog = BaitsCog(bot)
-    interaction = make_interaction()
-    await cog.baitcompare.callback(cog, interaction, bait1="Glitter Bait", bait2="GhostBait")
-    interaction.response.send_message.assert_called_once()
-    call_kwargs = interaction.response.send_message.call_args
-    assert call_kwargs.kwargs.get("ephemeral") is True
-    embed = call_kwargs.kwargs["embed"]
-    assert "GhostBait" in (embed.description or "") or "GhostBait" in (embed.title or "")
-
-
-@pytest.mark.asyncio
-async def test_baitcompare_both_found_sends_embed():
-    from cogs.baits import BaitsCog
-    b1 = make_bait(id="glitter", name="Glitter Bait")
-    b2 = make_bait(id="gold", name="Gold Bait", explanation="Increases Common by 5%.", idle=False)
-    client = make_mock_dank_client(baits=[b1, b2])
-    bot = make_mock_bot(dank_client=client)
-    cog = BaitsCog(bot)
-    interaction = make_interaction()
-    await cog.baitcompare.callback(cog, interaction, bait1="Glitter Bait", bait2="Gold Bait")
-    interaction.response.send_message.assert_called_once()
-    call_kwargs = interaction.response.send_message.call_args
-    assert "embed" in call_kwargs.kwargs
-    embed = call_kwargs.kwargs["embed"]
-    field_names = [f.name for f in embed.fields]
-    assert "Glitter Bait" in field_names
-    assert "Gold Bait" in field_names
-
-
-# ---------------------------------------------------------------------------
 # BaitsCog autocomplete
 # ---------------------------------------------------------------------------
 
@@ -239,29 +174,7 @@ async def test_bait_autocomplete_delegates_to_autocomplete_index():
 
 
 @pytest.mark.asyncio
-async def test_baitcompare_autocomplete_returns_empty_when_no_autocomplete():
-    from cogs.baits import BaitsCog
-    bot = make_mock_bot(autocomplete=None)
-    cog = BaitsCog(bot)
-    interaction = make_interaction()
-    result = await cog.baitcompare_autocomplete(interaction, "Glitter")
-    assert result == []
-
-
 @pytest.mark.asyncio
-async def test_baitcompare_autocomplete_delegates_to_autocomplete_index():
-    from cogs.baits import BaitsCog
-    mock_ac = MagicMock()
-    expected = discord.app_commands.Choice(name="Glitter Bait", value="Glitter Bait")
-    mock_ac.bait_choices = MagicMock(return_value=[expected])
-    bot = make_mock_bot(autocomplete=mock_ac)
-    cog = BaitsCog(bot)
-    interaction = make_interaction()
-    result = await cog.baitcompare_autocomplete(interaction, "Glitter")
-    mock_ac.bait_choices.assert_called_once_with("Glitter")
-    assert result == [expected]
-
-
 # ---------------------------------------------------------------------------
 # BaitView
 # ---------------------------------------------------------------------------
@@ -280,7 +193,6 @@ def test_baitview_has_expected_buttons():
     dc = make_mock_dank_client()
     view = BaitView(bait, dc)
     labels = [item.label for item in view.children if isinstance(item, discord.ui.Button)]
-    assert any("Compare" in l for l in labels)
     assert any("Delete" in l for l in labels)
     assert any("Simulate" in l for l in labels)
 
@@ -341,18 +253,6 @@ async def test_baitview_on_timeout_no_message_no_error():
 
 
 @pytest.mark.asyncio
-async def test_baitview_compare_btn_sends_modal():
-    from cogs.baits import BaitView, BaitCompareModal
-    bait = make_bait()
-    dc = make_mock_dank_client()
-    view = BaitView(bait, dc)
-    interaction = make_interaction()
-    await view.compare_btn.callback(interaction)
-    interaction.response.send_modal.assert_called_once()
-    modal_arg = interaction.response.send_modal.call_args.args[0]
-    assert isinstance(modal_arg, BaitCompareModal)
-
-
 @pytest.mark.asyncio
 async def test_baitview_delete_btn_deletes_message():
     from cogs.baits import BaitView
@@ -367,132 +267,3 @@ async def test_baitview_delete_btn_deletes_message():
 
 
 # ---------------------------------------------------------------------------
-# BaitCompareModal
-# ---------------------------------------------------------------------------
-
-def test_baitcomparemodal_stores_first_and_client():
-    from cogs.baits import BaitCompareModal
-    bait = make_bait()
-    dc = make_mock_dank_client()
-    modal = BaitCompareModal(bait, dc)
-    assert modal.first is bait
-    assert modal.dc is dc
-
-
-@pytest.mark.asyncio
-async def test_baitcomparemodal_on_submit_not_found_sends_ephemeral():
-    from cogs.baits import BaitCompareModal
-    bait = make_bait()
-    dc = make_mock_dank_client()
-    modal = BaitCompareModal(bait, dc)
-    modal.second_bait._value = "NonExistentBait"
-    interaction = make_interaction()
-    await modal.on_submit(interaction)
-    interaction.response.send_message.assert_called_once()
-    assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
-
-
-@pytest.mark.asyncio
-async def test_baitcomparemodal_on_submit_not_found_embed_contains_name():
-    from cogs.baits import BaitCompareModal
-    bait = make_bait()
-    dc = make_mock_dank_client()
-    modal = BaitCompareModal(bait, dc)
-    modal.second_bait._value = "GhostBait"
-    interaction = make_interaction()
-    await modal.on_submit(interaction)
-    embed = interaction.response.send_message.call_args.kwargs["embed"]
-    assert "GhostBait" in (embed.description or "") or "GhostBait" in (embed.title or "")
-
-
-@pytest.mark.asyncio
-async def test_baitcomparemodal_on_submit_found_edits_message():
-    from cogs.baits import BaitCompareModal
-    b1 = make_bait(id="glitter", name="Glitter Bait")
-    b2 = make_bait(id="gold", name="Gold Bait", explanation="Increases Common by 5%.", idle=False)
-    dc = make_mock_dank_client(baits=[b1, b2])
-    modal = BaitCompareModal(b1, dc)
-    modal.second_bait._value = "Gold Bait"
-    interaction = make_interaction()
-    await modal.on_submit(interaction)
-    interaction.response.edit_message.assert_called_once()
-    call_kwargs = interaction.response.edit_message.call_args
-    # view=None per brief spec
-    assert call_kwargs.kwargs.get("view") is None
-    embed = call_kwargs.kwargs["embed"]
-    field_names = [f.name for f in embed.fields]
-    assert "Glitter Bait" in field_names
-    assert "Gold Bait" in field_names
-
-
-@pytest.mark.asyncio
-async def test_baitcomparemodal_on_submit_strips_whitespace():
-    from cogs.baits import BaitCompareModal
-    b1 = make_bait(id="glitter", name="Glitter Bait")
-    b2 = make_bait(id="gold", name="Gold Bait")
-    dc = make_mock_dank_client(baits=[b1, b2])
-    modal = BaitCompareModal(b1, dc)
-    modal.second_bait._value = "  Gold Bait  "
-    interaction = make_interaction()
-    await modal.on_submit(interaction)
-    # Should resolve to "Gold Bait" after strip — edit_message called (found)
-    interaction.response.edit_message.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# setup()
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_setup_adds_cog():
-    from cogs.baits import setup, BaitsCog
-    bot = AsyncMock()
-    bot.add_cog = AsyncMock()
-    await setup(bot)
-    bot.add_cog.assert_called_once()
-    cog_arg = bot.add_cog.call_args.args[0]
-    assert isinstance(cog_arg, BaitsCog)
-
-
-# ---------------------------------------------------------------------------
-# BaitView — Favourite button
-# ---------------------------------------------------------------------------
-
-def test_baitview_fav_btn_disabled_when_no_db():
-    from cogs.baits import BaitView
-    bait = make_bait()
-    dc = make_mock_dank_client()
-    view = BaitView(bait, dc)  # no db/user_id — existing call style
-    fav_btn = next(
-        item for item in view.children
-        if isinstance(item, discord.ui.Button) and "Favour" in item.label
-    )
-    assert fav_btn.disabled is True
-
-
-def test_baitview_fav_btn_enabled_when_db_provided():
-    from cogs.baits import BaitView
-    bait = make_bait()
-    dc = MagicMock()
-    db = MagicMock()
-    view = BaitView(bait, dc, db=db, user_id="123", is_faved=False)
-    fav_btn = next(
-        item for item in view.children
-        if isinstance(item, discord.ui.Button) and "Favour" in item.label
-    )
-    assert fav_btn.disabled is False
-
-
-@pytest.mark.asyncio
-async def test_bait_command_writes_history():
-    from cogs.baits import BaitsCog
-    db = MagicMock()
-    db.get_favorites = AsyncMock(return_value=[])
-    db.add_history = AsyncMock()
-    bot = make_mock_bot()
-    bot.db = db
-    cog = BaitsCog(bot)
-    interaction = make_interaction()
-    interaction.user.id = "123"
-    await cog.bait.callback(cog, interaction, name="Glitter Bait")
-    db.add_history.assert_called_once_with("123", "bait", "glitter")

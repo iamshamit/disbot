@@ -1,4 +1,4 @@
-"""Tests for cogs/locations.py — LocationsCog, LocationView, LocationsListView, LocationCompareModal."""
+"""Tests for cogs/locations.py — LocationsCog, LocationView, LocationsListView."""
 from __future__ import annotations
 
 import pytest
@@ -166,65 +166,9 @@ async def test_locations_sends_embed_and_view():
 
 
 # ---------------------------------------------------------------------------
-# LocationsCog.locationcompare command
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_locationcompare_not_loaded_returns_error():
-    from cogs.locations import LocationsCog
-    bot = make_mock_bot(dank_client=None)
-    cog = LocationsCog(bot)
-    interaction = make_interaction()
-    await cog.locationcompare.callback(cog, interaction, location1="Sunken Ship", location2="Murky Pond")
-    interaction.response.send_message.assert_called_once()
-    assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
-
-
-@pytest.mark.asyncio
-async def test_locationcompare_loc1_not_found():
-    from cogs.locations import LocationsCog
-    bot = make_mock_bot()
-    cog = LocationsCog(bot)
-    interaction = make_interaction()
-    await cog.locationcompare.callback(cog, interaction, location1="NoSuchPlace", location2="Sunken Ship")
-    interaction.response.send_message.assert_called_once()
-    assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
-
-
-@pytest.mark.asyncio
-async def test_locationcompare_loc2_not_found():
-    from cogs.locations import LocationsCog
-    locs = [
-        make_location(id="sunken_ship", name="Sunken Ship"),
-        make_location(id="murky_pond", name="Murky Pond"),
-    ]
-    bot = make_mock_bot(dank_client=make_mock_dank_client(locations=locs))
-    cog = LocationsCog(bot)
-    interaction = make_interaction()
-    await cog.locationcompare.callback(cog, interaction, location1="Sunken Ship", location2="NoSuchPlace")
-    interaction.response.send_message.assert_called_once()
-    assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
-
-
-@pytest.mark.asyncio
-async def test_locationcompare_both_found_sends_embed():
-    from cogs.locations import LocationsCog
-    locs = [
-        make_location(id="sunken_ship", name="Sunken Ship"),
-        make_location(id="murky_pond", name="Murky Pond"),
-    ]
-    bot = make_mock_bot(dank_client=make_mock_dank_client(locations=locs))
-    cog = LocationsCog(bot)
-    interaction = make_interaction()
-    await cog.locationcompare.callback(cog, interaction, location1="Sunken Ship", location2="Murky Pond")
-    interaction.response.send_message.assert_called_once()
-    call_kwargs = interaction.response.send_message.call_args
-    assert "embed" in call_kwargs.kwargs
-    embed = call_kwargs.kwargs["embed"]
-    assert "Sunken Ship" in embed.title
-    assert "Murky Pond" in embed.title
-
-
 # ---------------------------------------------------------------------------
 # LocationsCog autocomplete
 # ---------------------------------------------------------------------------
@@ -254,15 +198,6 @@ async def test_location_autocomplete_delegates_to_autocomplete_index():
 
 
 @pytest.mark.asyncio
-async def test_locationcompare_autocomplete_returns_empty_when_no_autocomplete():
-    from cogs.locations import LocationsCog
-    bot = make_mock_bot(autocomplete=None)
-    cog = LocationsCog(bot)
-    interaction = make_interaction()
-    result = await cog.locationcompare_autocomplete(interaction, "Sun")
-    assert result == []
-
-
 # ---------------------------------------------------------------------------
 # LocationView
 # ---------------------------------------------------------------------------
@@ -281,7 +216,6 @@ def test_locationview_has_expected_buttons():
     dc = make_mock_dank_client()
     view = LocationView(loc, dc)
     labels = [item.label for item in view.children if isinstance(item, discord.ui.Button)]
-    assert any("Compare" in l for l in labels)
     assert any("Delete" in l for l in labels)
     assert any("Open Fish" in l for l in labels)
 
@@ -333,18 +267,6 @@ async def test_locationview_on_timeout_edits_message():
 
 
 @pytest.mark.asyncio
-async def test_locationview_compare_btn_sends_modal():
-    from cogs.locations import LocationView, LocationCompareModal
-    loc = make_location()
-    dc = make_mock_dank_client()
-    view = LocationView(loc, dc)
-    interaction = make_interaction()
-    await view.compare_btn.callback(interaction)
-    interaction.response.send_modal.assert_called_once()
-    modal_arg = interaction.response.send_modal.call_args.args[0]
-    assert isinstance(modal_arg, LocationCompareModal)
-
-
 @pytest.mark.asyncio
 async def test_locationview_delete_btn_deletes_message():
     from cogs.locations import LocationView
@@ -372,48 +294,7 @@ async def test_locationview_open_fish_btn_no_selection_sends_ephemeral():
 
 
 # ---------------------------------------------------------------------------
-# LocationCompareModal
 # ---------------------------------------------------------------------------
-
-def test_locationcomparemodal_stores_first_and_client():
-    from cogs.locations import LocationCompareModal
-    loc = make_location()
-    dc = make_mock_dank_client()
-    modal = LocationCompareModal(loc, dc, location=loc, dank_client_for_back=dc)
-    assert modal.first is loc
-    assert modal.dc is dc
-
-
-@pytest.mark.asyncio
-async def test_locationcomparemodal_on_submit_not_found_sends_ephemeral():
-    from cogs.locations import LocationCompareModal
-    loc = make_location()
-    dc = make_mock_dank_client()
-    modal = LocationCompareModal(loc, dc, location=loc, dank_client_for_back=dc)
-    modal.second_loc._value = "NonExistentPlace"
-    interaction = make_interaction()
-    await modal.on_submit(interaction)
-    interaction.response.send_message.assert_called_once()
-    assert interaction.response.send_message.call_args.kwargs.get("ephemeral") is True
-
-
-@pytest.mark.asyncio
-async def test_locationcomparemodal_on_submit_found_edits_message():
-    from cogs.locations import LocationCompareModal, BackToLocationView
-    loc1 = make_location(id="sunken_ship", name="Sunken Ship")
-    loc2 = make_location(id="murky_pond", name="Murky Pond")
-    dc = make_mock_dank_client(locations=[loc1, loc2])
-    modal = LocationCompareModal(loc1, dc, location=loc1, dank_client_for_back=dc)
-    modal.second_loc._value = "Murky Pond"
-    interaction = make_interaction()
-    await modal.on_submit(interaction)
-    interaction.response.edit_message.assert_called_once()
-    call_kwargs = interaction.response.edit_message.call_args
-    assert isinstance(call_kwargs.kwargs.get("view"), BackToLocationView)
-    embed = call_kwargs.kwargs["embed"]
-    assert "Sunken Ship" in embed.title
-    assert "Murky Pond" in embed.title
-
 
 # ---------------------------------------------------------------------------
 # LocationsListView
@@ -553,10 +434,11 @@ def test_locationslistview_has_sort_and_filter_selects():
     dc = make_mock_dank_client()
     view = LocationsListView(dc)
     selects = [item for item in view.children if isinstance(item, discord.ui.Select)]
-    assert len(selects) == 2
+    assert len(selects) == 3
     placeholders = {s.placeholder for s in selects}
     assert any("Sort" in (p or "") for p in placeholders)
     assert any("Filter" in (p or "") for p in placeholders)
+    assert any("Water" in (p or "") or "Type" in (p or "") for p in placeholders)
 
 
 @pytest.mark.asyncio

@@ -6,9 +6,9 @@ from discord.ext import commands
 from utils.embeds import (
     EmbedBuilder,
     build_location_embed,
-    build_location_compare_embed,
     build_locations_list_embed,
     build_fish_embed,
+    emoji_from_url,
 )
 from utils.views import DynamicPaginationView
 from utils.formatters import is_available_now, rarity_emoji, rarity_rank
@@ -16,36 +16,6 @@ from utils.formatters import is_available_now, rarity_emoji, rarity_rank
 _PRELOAD_MSG = "⏳ Data is still loading, please try again in a moment."
 _NOT_FOUND = "❌ No location named **{name}** found. Try `/locations` to browse."
 
-
-class LocationCompareModal(discord.ui.Modal, title="Compare Location"):
-    second_loc: discord.ui.TextInput = discord.ui.TextInput(
-        label="Second location name",
-        placeholder="e.g. Murky Pond",
-        min_length=1,
-        max_length=60,
-    )
-
-    def __init__(self, first_loc, dank_client, location, dank_client_for_back, db=None, user_id=None):
-        super().__init__()
-        self.first = first_loc
-        self.dc = dank_client
-        self.location = location
-        self.dank_client = dank_client_for_back
-        self.db = db
-        self.user_id = user_id
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        name = self.second_loc.value.strip()
-        second = self.dc.get_location(name)
-        if second is None:
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Not found", _NOT_FOUND.format(name=name)), ephemeral=True
-            )
-            return
-        await interaction.response.edit_message(
-            embed=build_location_compare_embed(self.first, second),
-            view=BackToLocationView(location=self.location, dank_client=self.dank_client, db=self.db, user_id=self.user_id),
-        )
 
 
 class BackToLocationView(discord.ui.View):
@@ -115,12 +85,13 @@ class LocationView(discord.ui.View):
         for c in creatures_sorted:
             rarity = c.extra.get("rarity", "Common")
             avail = "✅" if is_available_now(c) else "❌"
+            fish_emoji = emoji_from_url(getattr(c, "imageURL", None))
             options.append(
                 discord.SelectOption(
                     label=c.name[:100],
                     value=c.id,
                     description=f"{rarity}  ·  {avail} now",
-                    emoji=rarity_emoji(rarity),
+                    emoji=fish_emoji or rarity_emoji(rarity),
                 )
             )
         select = discord.ui.Select(
@@ -178,12 +149,6 @@ class LocationView(discord.ui.View):
         embed = build_fish_embed(creature, self.dc)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         view.message = await interaction.original_response()
-
-    @discord.ui.button(label="⚔️ Compare", style=discord.ButtonStyle.primary, row=1)
-    async def compare_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(
-            LocationCompareModal(self.loc, self.dc, location=self.loc, dank_client_for_back=self.dc, db=self.db, user_id=self.user_id)
-        )
 
     @discord.ui.button(label="🎮 Simulate", style=discord.ButtonStyle.secondary, row=1)
     async def sim_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -275,6 +240,7 @@ class LocationsListView(DynamicPaginationView):
         self.dc = dank_client
         self.sort = "name"
         self.filter_ = "All"
+        self.type_filter = "All"
         self.page = 0
         self._refresh()
 
@@ -286,6 +252,10 @@ class LocationsListView(DynamicPaginationView):
             locs = [l for l in locs if l.extra.get("disabled")]
         elif self.filter_ == "Active":
             locs = [l for l in locs if not l.extra.get("disabled") and not l.extra.get("temporary")]
+        if self.type_filter == "saltwater":
+            locs = [l for l in locs if (l.extra.get("type") if hasattr(l.extra, "get") else None) == "saltwater"]
+        elif self.type_filter == "freshwater":
+            locs = [l for l in locs if (l.extra.get("type") if hasattr(l.extra, "get") else None) == "freshwater"]
 
         if self.sort == "name":
             locs.sort(key=lambda l: l.name.lower())
@@ -331,6 +301,21 @@ class LocationsListView(DynamicPaginationView):
     )
     async def filter_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         self.filter_ = select.values[0]
+        self.page = 0
+        self._refresh()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.select(
+        placeholder="🌊 Water Type ▾",
+        row=3,
+        options=[
+            discord.SelectOption(label="All types", value="All", default=True),
+            discord.SelectOption(label="🌊 Saltwater", value="saltwater"),
+            discord.SelectOption(label="🏞️ Freshwater", value="freshwater"),
+        ],
+    )
+    async def type_select(self, interaction: discord.Interaction, select: discord.ui.Select):
+        self.type_filter = select.values[0]
         self.page = 0
         self._refresh()
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
@@ -387,35 +372,6 @@ class LocationsCog(commands.Cog):
         view = LocationsListView(self.bot.dank_client)
         await interaction.response.send_message(embed=view.build_embed(), view=view)
         view.message = await interaction.original_response()
-
-    @app_commands.command(name="locationcompare", description="Compare two locations")
-    @app_commands.describe(location1="First location", location2="Second location")
-    async def locationcompare(self, interaction: discord.Interaction, location1: str, location2: str):
-        if not self._guard():
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Loading", _PRELOAD_MSG), ephemeral=True
-            )
-            return
-        l1 = self.bot.dank_client.get_location(location1)
-        l2 = self.bot.dank_client.get_location(location2)
-        if l1 is None:
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Not found", _NOT_FOUND.format(name=location1)), ephemeral=True
-            )
-            return
-        if l2 is None:
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Not found", _NOT_FOUND.format(name=location2)), ephemeral=True
-            )
-            return
-        await interaction.response.send_message(embed=build_location_compare_embed(l1, l2))
-
-    @locationcompare.autocomplete("location1")
-    @locationcompare.autocomplete("location2")
-    async def locationcompare_autocomplete(self, interaction: discord.Interaction, current: str):
-        if not self.bot.autocomplete:
-            return []
-        return self.bot.autocomplete.location_choices(current)
 
 
 async def setup(bot: commands.Bot):

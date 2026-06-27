@@ -36,7 +36,7 @@ def test_build_fish_embed_title(creature):
 def test_build_fish_embed_color_common(creature):
     from utils.embeds import build_fish_embed
     embed = build_fish_embed(creature, make_mock_client())
-    assert embed.color.value == 0x8e9297
+    assert embed.color.value == 0x57f287  # Common rarity color
 
 def test_build_fish_embed_color_boss(boss_creature):
     from utils.embeds import build_fish_embed
@@ -75,34 +75,6 @@ def test_build_fish_embed_footer(creature):
     embed = build_fish_embed(creature, make_mock_client())
     assert embed.footer.text == "Internal ID: goldfish"
 
-
-# --- Compare embed ---
-
-def test_build_fish_compare_embed_title():
-    from utils.embeds import build_fish_compare_embed
-    c1 = make_creature(name="Goldfish")
-    c2 = make_creature(id="koi", name="Koi", rarity="Rare")
-    embed = build_fish_compare_embed(c1, c2)
-    assert "Goldfish" in embed.title
-    assert "Koi" in embed.title
-
-def test_build_fish_compare_embed_winner_marked():
-    from utils.embeds import build_fish_compare_embed
-    c1 = make_creature(locations=["a", "b"], rarity="Common")
-    c2 = make_creature(locations=["a", "b", "c", "d", "e"], rarity="Rare")
-    embed = build_fish_compare_embed(c1, c2)
-    # c2 has more locations and higher rarity → its column should contain ✓
-    all_vals = "\n".join(f.value for f in embed.fields if f.value)
-    assert "\u2713" in all_vals
-
-def test_build_fish_compare_embed_uses_fields():
-    from utils.embeds import build_fish_compare_embed
-    c1 = make_creature(name="Goldfish")
-    c2 = make_creature(id="koi", name="Koi", rarity="Rare")
-    embed = build_fish_compare_embed(c1, c2)
-    assert len(embed.fields) == 3  # labels + c1 + c2
-    assert embed.fields[1].name == "Goldfish"
-    assert embed.fields[2].name == "Koi"
 
 
 # --- Peak hours embed ---
@@ -150,7 +122,7 @@ def test_build_fishlist_embed_footer_format():
 def test_build_location_embed_title(location):
     from utils.embeds import build_location_embed
     embed = build_location_embed(location, make_mock_client())
-    assert embed.title == "Sunken Ship"
+    assert "Sunken Ship" in embed.title
 
 def test_build_location_embed_has_stats(location):
     from utils.embeds import build_location_embed
@@ -205,36 +177,7 @@ def test_build_tool_embed_bait_support(tool):
     text = _all_text(embed)
     assert "\u2705" in text
 
-def test_build_toolcompare_embed_contains_all_tools():
-    from utils.embeds import build_toolcompare_embed
-    t1 = make_tool(name="Rod")
-    t2 = make_tool(id="harpoon", name="Harpoon", baits=False, usage=50)
-    embed = build_toolcompare_embed([t1, t2])
-    assert "Rod" in embed.description
-    assert "Harpoon" in embed.description
 
-
-# --- Bait embeds ---
-
-def test_build_bait_embed_title(bait):
-    from utils.embeds import build_bait_embed
-    embed = build_bait_embed(bait)
-    assert embed.title == "Glitter Bait"
-
-def test_build_bait_embed_explanation(bait):
-    from utils.embeds import build_bait_embed
-    embed = build_bait_embed(bait)
-    assert "Rare catch" in _all_text(embed)
-
-def test_build_bait_compare_embed_title():
-    from utils.embeds import build_bait_compare_embed
-    b1 = make_bait(name="Glitter")
-    b2 = make_bait(id="gold", name="Gold Bait", explanation="Doubles Mythical catch.", idle=False, usage=10)
-    embed = build_bait_compare_embed(b1, b2)
-    assert "Glitter" in embed.title and "Gold Bait" in embed.title
-
-
-# --- NPC embeds ---
 
 def test_build_npc_embed_title():
     from utils.embeds import build_npc_embed

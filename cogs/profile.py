@@ -23,35 +23,6 @@ def _picker_embed(title: str) -> discord.Embed:
 # Small modals for non-enumerable fields (rod / weather / fav fish)
 # ---------------------------------------------------------------------------
 
-class RodModal(discord.ui.Modal, title="Set Fishing Rod"):
-    rod: discord.ui.TextInput = discord.ui.TextInput(
-        label="Fishing Rod", placeholder="e.g. Wooden Rod", required=False, max_length=100
-    )
-
-    def __init__(self, parent_view):
-        super().__init__()
-        self.parent_view = parent_view
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        val = self.rod.value.strip()
-        if val:
-            self.parent_view._pending_rod = val
-        await interaction.response.defer()
-
-
-class WeatherModal(discord.ui.Modal, title="Set Current Weather"):
-    weather: discord.ui.TextInput = discord.ui.TextInput(
-        label="Current Weather", placeholder="e.g. Rainy", required=False, max_length=100
-    )
-
-    def __init__(self, parent_view):
-        super().__init__()
-        self.parent_view = parent_view
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        self.parent_view._pending_weather = self.weather.value.strip() or None
-        await interaction.response.defer()
-
 
 class FavFishModal(discord.ui.Modal, title="Set Favourite Fish"):
     fish: discord.ui.TextInput = discord.ui.TextInput(
@@ -122,8 +93,6 @@ class EditSetupView(discord.ui.View):
         self.db = db
         self.member = member
         self.dc = dc
-        self._pending_rod: str | None = None
-
         tool_opts = [discord.SelectOption(label="— No Tool —", value="__clear__")] + [
             discord.SelectOption(label=t.name, value=t.id,
                                  emoji=emoji_from_url(getattr(t, "imageURL", None)))
@@ -149,15 +118,9 @@ class EditSetupView(discord.ui.View):
     async def _defer(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
 
-    @discord.ui.button(label="🖊️ Set Rod", style=discord.ButtonStyle.secondary, row=2)
-    async def set_rod_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(RodModal(self))
-
-    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=3)
+    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=2)
     async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         updates: dict = {}
-        if self._pending_rod:
-            updates["fishing_rod"] = self._pending_rod
         if self._tool_sel.values:
             v = self._tool_sel.values[0]
             if v == "__clear__":
@@ -182,7 +145,7 @@ class EditSetupView(discord.ui.View):
             view=ProfileView(self.db, self.member, self.dc),
         )
 
-    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=3)
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=2)
     async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
@@ -253,8 +216,6 @@ class EditEnvView(discord.ui.View):
         self.db = db
         self.member = member
         self.dc = dc
-        self._pending_weather = _UNSET
-
         event_opts = [discord.SelectOption(label="— No Event —", value="__clear__")] + [
             discord.SelectOption(label=e.name, value=e.id,
                                  emoji=emoji_from_url(getattr(e, "imageURL", None)))
@@ -269,15 +230,9 @@ class EditEnvView(discord.ui.View):
     async def _defer(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
 
-    @discord.ui.button(label="🌤️ Set Weather", style=discord.ButtonStyle.secondary, row=1)
-    async def set_weather_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(WeatherModal(self))
-
-    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=2)
+    @discord.ui.button(label="✅ Save", style=discord.ButtonStyle.success, row=1)
     async def save_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         updates: dict = {}
-        if self._pending_weather is not _UNSET:
-            updates["current_weather"] = self._pending_weather
         if self._event_sel.values:
             v = self._event_sel.values[0]
             if v == "__clear__":
@@ -294,7 +249,7 @@ class EditEnvView(discord.ui.View):
             view=ProfileView(self.db, self.member, self.dc),
         )
 
-    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=2)
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary, row=1)
     async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         user_row = await self.db.get_user(str(self.member.id))
         await interaction.response.edit_message(
@@ -421,7 +376,6 @@ class ResetConfirmView(discord.ui.View):
         user_id = str(self.member.id)
         await self.db.update_user(
             user_id,
-            fishing_rod="Wooden Rod",
             current_tool=None,
             current_bait=None,
             skills=None,
@@ -433,7 +387,6 @@ class ResetConfirmView(discord.ui.View):
             favorite_location=None,
             favorite_tool=None,
             favorite_bait=None,
-            current_weather=None,
             current_event=None,
         )
         user_row = await self.db.get_user(user_id)

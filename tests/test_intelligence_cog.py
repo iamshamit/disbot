@@ -2,6 +2,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from tests.conftest import make_creature, make_tool, make_location
+import cogs.intelligence as _intel
 
 
 def _make_dc():
@@ -32,31 +33,77 @@ def _make_bot(dc):
 
 
 @pytest.mark.asyncio
-async def test_optimizer_no_target_embed_has_best_setup():
-    from cogs.intelligence import IntelligenceCog
+async def test_optimizer_cached_result_sends_embed():
+    """With a pre-populated cache the optimizer returns instantly via send_message."""
+    from cogs.intelligence import IntelligenceCog, _opt_cache
     dc = _make_dc()
     bot = _make_bot(dc)
     cog = IntelligenceCog(bot)
+    bass = dc.fish_by_id["bass"]
+
+    # Pre-populate cache so the command takes the fast (non-defer) path
+    hour = 0
+    cache_key = (bass.id, hour)
+    _opt_cache[cache_key] = [
+        {"tool": dc.tool_by_id["fishing-rod"], "bait": None, "loc_id": "ocean",
+         "timely": False, "chance": 25.0}
+    ]
+
     interaction = MagicMock()
     interaction.response.send_message = AsyncMock()
     interaction.user.id = 111
-    await cog.optimizer.callback(cog, interaction, target=None)
+
+    import cogs.intelligence as _m
+    orig = _m._utc_hour
+    _m._utc_hour = lambda: hour
+    try:
+        await cog.optimizer.callback(cog, interaction, target="Bass")
+    finally:
+        _m._utc_hour = orig
+        del _opt_cache[cache_key]
+
     interaction.response.send_message.assert_called_once()
     embed = interaction.response.send_message.call_args.kwargs["embed"]
-    assert "Best Setup" in embed.title
+    assert "Bass" in embed.title
 
 
 @pytest.mark.asyncio
 async def test_optimizer_with_target_mentions_fish():
-    from cogs.intelligence import IntelligenceCog
+    """Optimizer with an uncached target defers and calls followup."""
+    from cogs.intelligence import IntelligenceCog, _opt_cache
     dc = _make_dc()
     bot = _make_bot(dc)
     cog = IntelligenceCog(bot)
+    bass = dc.fish_by_id["bass"]
+
+    # Ensure cache is empty for this test
+    hour = 1
+    _opt_cache.pop((bass.id, hour), None)
+
     interaction = MagicMock()
-    interaction.response.send_message = AsyncMock()
+    interaction.response.defer = AsyncMock()
+    interaction.followup.send = AsyncMock()
+    interaction.edit_original_response = AsyncMock()
     interaction.user.id = 111
-    await cog.optimizer.callback(cog, interaction, target="Bass")
-    embed = interaction.response.send_message.call_args.kwargs["embed"]
+
+    import cogs.intelligence as _m
+    orig_hour = _m._utc_hour
+    orig_run = _m._run_fish_optimizer
+    _m._utc_hour = lambda: hour
+    _m._run_fish_optimizer = AsyncMock(return_value=[
+        {"tool": dc.tool_by_id["fishing-rod"], "bait": None, "loc_id": "ocean",
+         "timely": False, "chance": 22.0}
+    ])
+    try:
+        await cog.optimizer.callback(cog, interaction, target="Bass")
+    finally:
+        _m._utc_hour = orig_hour
+        _m._run_fish_optimizer = orig_run
+        _opt_cache.pop((bass.id, hour), None)
+
+    interaction.response.defer.assert_called_once()
+    interaction.edit_original_response.assert_called_once()
+    embed = interaction.edit_original_response.call_args.kwargs["embed"]
     assert "Bass" in embed.title
 
 

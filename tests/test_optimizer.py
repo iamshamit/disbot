@@ -40,9 +40,9 @@ def test_score_setup_sums_rarity_weights():
     from utils.optimizer import score_setup
     from utils.fish_data import RARITY_WEIGHTS
     dc = _make_dc()
-    # At hour 3: bass (Common=14.5, rod.max=2) + koi (Rare=6.5, rod.max=3)
+    # At hour 3: bass (Common) + koi (Rare) — qty NOT counted, just rarity weight
     score = score_setup(dc, "fishing-rod", "ocean", 3)
-    expected = RARITY_WEIGHTS["Common"] * 2 + RARITY_WEIGHTS["Rare"] * 3
+    expected = RARITY_WEIGHTS["Common"] + RARITY_WEIGHTS["Rare"]
     assert abs(score - expected) < 0.001
 
 

@@ -9,25 +9,25 @@ from tests.conftest import make_creature
 
 
 def test_rarity_color_common():
-    assert rarity_color("Common") == 0x8e9297
+    assert rarity_color("Common") == 0x57f287
 
 def test_rarity_color_boss_overrides():
     assert rarity_color("Common", boss=True) == BOSS_COLOR
 
 def test_rarity_color_unknown_returns_default():
-    assert rarity_color("Unknown") == 0x8e9297  # falls back to Common colour
+    assert rarity_color("Unknown") == rarity_color("Common")  # falls back to Common colour
 
 def test_rarity_emoji_known():
-    assert rarity_emoji("Rare") == "🔵"
+    assert rarity_emoji("Rare") == "🟡"
 
 def test_rarity_emoji_unknown():
     result = rarity_emoji("Alien Tier")
     assert isinstance(result, str) and len(result) > 0
 
 def test_rarity_rank_order():
-    assert rarity_rank("Common") < rarity_rank("Uncommon") < rarity_rank("Rare")
+    assert rarity_rank("Absurdly Common") < rarity_rank("Very Common") < rarity_rank("Common")
+    assert rarity_rank("Common") < rarity_rank("Regular") < rarity_rank("Rare")
     assert rarity_rank("Rare") < rarity_rank("Very Rare") < rarity_rank("Absurdly Rare")
-    assert rarity_rank("Absurdly Rare") < rarity_rank("Mythical")
 
 def test_rarity_rank_unknown():
     assert rarity_rank("Unknown") == -1

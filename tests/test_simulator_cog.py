@@ -296,7 +296,8 @@ def test_build_fish_peak_embed_marks_best_hour():
                             "variants": {}}))
     embed = sim_mod.build_fish_peak_embed("bass", results, dc)
     body = (embed.description or "") + "".join(f.value for f in embed.fields)
-    assert "14:00" in body
+    # Peak hour is shown as a Discord timestamp (<t:...:t>) not "14:00" literal
+    assert "20.0%" in body
     assert "⭐" in body
     assert "Bass" in embed.title
 

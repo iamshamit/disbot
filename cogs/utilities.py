@@ -10,10 +10,6 @@ from utils.embeds import EmbedBuilder, emoji_from_url
 
 _PRELOAD_MSG = "⏳ Data is still loading, please try again in a moment."
 
-_RARITY_ORDER = [
-    "Absurdly Common", "Very Common", "Common", "Regular",
-    "Rare", "Very Rare", "Absurdly Rare",
-]
 
 
 def _utc_hour() -> int:
@@ -45,26 +41,6 @@ def _upcoming_windows(dc, hour: int, location_id: str | None = None, ahead: int 
     return windows
 
 
-def _build_rarity_embed(dc, hour: int) -> discord.Embed:
-    by_rarity: dict[str, list[str]] = {r: [] for r in _RARITY_ORDER}
-    for fish in dc.fish_by_id.values():
-        r = fish.extra.get("rarity", "")
-        if r in by_rarity:
-            by_rarity[r].append(fish.id)
-    catchable = _catchable_set(dc, hour)
-    embed = discord.Embed(title="Rarity Tiers", color=0x5865F2)
-    for rarity in _RARITY_ORDER:
-        fish_ids = by_rarity[rarity]
-        total = len(fish_ids)
-        now = sum(1 for fid in fish_ids if fid in catchable)
-        weight = RARITY_WEIGHTS[rarity]
-        embed.add_field(
-            name=rarity,
-            value=f"Weight: **{weight}** · Total: **{total}** · Now: **{now}**",
-            inline=False,
-        )
-    embed.set_footer(text=f"UTC hour: {hour:02d}:00")
-    return embed
 
 
 _EVENT_PAGE_SIZE = 5
@@ -364,19 +340,6 @@ class UtilitiesCog(commands.Cog):
     @property
     def db(self):
         return self.bot.db
-
-    @app_commands.command(name="rarity", description="Show rarity tiers and how many fish are catchable right now.")
-    async def rarity(self, interaction: discord.Interaction):
-        if not self.dc.fish_by_id:
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Not ready", _PRELOAD_MSG), ephemeral=True
-            )
-            return
-        hour = _utc_hour()
-        embed = _build_rarity_embed(self.dc, hour)
-        view = _DeleteView()
-        await interaction.response.send_message(embed=embed, view=view)
-        view.message = await interaction.original_response()
 
     @app_commands.command(name="event", description="Browse fishing events or view a specific event.")
     @app_commands.describe(name="Event name — leave blank for an overview of all events")

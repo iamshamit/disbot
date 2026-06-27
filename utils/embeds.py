@@ -188,57 +188,6 @@ def build_compare_base(title: str, author_text: str, col1_name: str, col2_name: 
     return embed
 
 
-def build_fish_compare_embed(c1, c2, dc=None) -> discord.Embed:
-    def _best_tool_info(c):
-        tools_data = c.extra.get("tools") or {}
-        if not tools_data:
-            return "\u2014", 0
-        best_max = max(v.get("max", 0) for v in tools_data.values())
-        best_ids = [tid for tid, v in tools_data.items() if v.get("max", 0) == best_max]
-        if dc and best_ids and best_ids[0] in dc.tool_by_id:
-            name = dc.tool_by_id[best_ids[0]].name
-        else:
-            name = best_ids[0] if best_ids else "\u2014"
-        return name, best_max
-
-    def _val(c, other):
-        ex, ox = c.extra, other.extra
-        rarity = ex.get("rarity", "Common")
-        rr = rarity_rank(rarity)
-        orr = rarity_rank(ox.get("rarity", "Common"))
-        locs = len(ex.get("locations") or [])
-        olocs = len(ox.get("locations") or [])
-        varis = len(ex.get("variants") or [])
-        ovaris = len(ox.get("variants") or [])
-        bt_name, bt_max = _best_tool_info(c)
-        _, o_max = _best_tool_info(other)
-        bt_mark = " \u2713" if bt_max > o_max or (bt_max == o_max and bt_max > 0) else ""
-        mc_mark = " \u2713" if bt_max > o_max else ""
-        return "\n".join([
-            f"{rarity_emoji(rarity)} {rarity}" + (" \u2713" if rr > orr else ""),
-            "\u2705" if ex.get("boss") else "\u274c",
-            "\u2705" if ex.get("mythical") else "\u274c",
-            format_time_window(c),
-            str(locs) + (" \u2713" if locs > olocs else ""),
-            str(varis) + (" \u2713" if varis > ovaris else ""),
-            bt_name + bt_mark,
-            str(bt_max) + mc_mark,
-        ])
-
-    rows = [
-        ("Rarity", _val(c1, c2), _val(c2, c1)),
-    ]
-    # Build embed directly — the multi-line values don't fit the build_compare_base pattern
-    embed = discord.Embed(
-        title=f"\u2694\ufe0f  {c1.name}  vs  {c2.name}",
-        color=COMPARE_COLOR,
-    )
-    embed.set_author(name="\u2694\ufe0f Fish Compare")
-    embed.add_field(name="\u200b", value="**Rarity**\n**Boss**\n**Mythical**\n**Window**\n**Locations**\n**Variants**\n**Best Tool**\n**Max Catch**", inline=True)
-    embed.add_field(name=c1.name, value=_val(c1, c2), inline=True)
-    embed.add_field(name=c2.name, value=_val(c2, c1), inline=True)
-    return embed
-
 
 def build_peak_hours_embed(creature) -> discord.Embed:
     extra = creature.extra
@@ -327,7 +276,8 @@ def build_fishlist_embed(
             badges += " \ud83d\udc51 BOSS"
         if mythical:
             badges += " \u2728 MYTHICAL"
-        rem = rarity_emoji(rarity)
+        fish_emoji = emoji_from_url(getattr(c, "imageURL", None))
+        rem = str(fish_emoji) if fish_emoji else rarity_emoji(rarity)
         lines.append(f"{rem} **{c.name}**{badges}  \u00b7  {avail} now")
 
     embed.description = "\n".join(lines) if lines else "*No fish match this filter.*"
@@ -340,11 +290,14 @@ def build_location_embed(location, dank_client) -> discord.Embed:
     disabled = extra.get("disabled", False)
     temporary = extra.get("temporary", False)
 
-    embed = discord.Embed(title=location.name, color=LOCATION_COLOR)
+    loc_emoji = emoji_from_url(getattr(location, "imageURL", None))
+    title_prefix = str(loc_emoji) + "  " if loc_emoji else ""
+    embed = discord.Embed(title=title_prefix + location.name, color=LOCATION_COLOR)
     embed.set_author(name="\U0001f4cd Location")
     embed.timestamp = discord.utils.utcnow()
-    if extra.get("thumbnailURL"):
-        embed.set_thumbnail(url=extra["thumbnailURL"])
+    thumb = extra.get("thumbnailURL") or getattr(location, "imageURL", None)
+    if thumb:
+        embed.set_thumbnail(url=thumb)
     if extra.get("bannerURL"):
         embed.set_image(url=extra["bannerURL"])
 
@@ -442,12 +395,14 @@ def build_locations_list_embed(
         extra = loc.extra
         fish_count = len(extra.get("creatures") or [])
         fail = extra.get("failChance", 0)
+        loc_emoji = emoji_from_url(getattr(loc, "imageURL", None))
+        icon = str(loc_emoji) if loc_emoji else "\ud83d\udccd"
         badges = ""
         if extra.get("temporary"):
-            badges += " \U0001f534 Temp"
+            badges += " \ud83d\udd34 Temp"
         if extra.get("disabled"):
             badges += " \u26d4"
-        lines.append(f"\U0001f4cd **{loc.name}**{badges}  \u00b7  \U0001f41f {fish_count}  \u00b7  \U0001f480 {fail}%")
+        lines.append(f"{icon} **{loc.name}**{badges}  \u00b7  \ud83d\udc1f {fish_count}  \u00b7  \ud83d\udc80 {fail}%")
 
     embed.description = "\n".join(lines) if lines else "*No locations match this filter.*"
     embed.set_footer(text=f"Page {page + 1} / {total_pages}  \u00b7  Sort: {sort}  \u00b7  Filter: {filter_}")
@@ -506,38 +461,6 @@ def build_tool_embed(tool, dc=None) -> discord.Embed:
     return embed
 
 
-def build_toolcompare_embed(tools: list) -> discord.Embed:
-    embed = discord.Embed(title="\u2694\ufe0f Tool Comparison", color=COMPARE_COLOR)
-    embed.set_author(name="\u2694\ufe0f Tool Compare")
-
-    headers = ["Tool", "Baits", "Usage", "Buffs", "Debuffs"]
-    col_w = [max(len(h), max((len(t.name) for t in tools), default=4)) for h in headers]
-    col_w[0] = max(len(h) for h in [t.name for t in tools] + [headers[0]])
-    col_w[1] = max(len("Baits"), 5)
-    col_w[2] = max(len("Usage"), 5)
-    col_w[3] = max(len("Buffs"), 5)
-    col_w[4] = max(len("Debuffs"), 7)
-
-    def row_str(cells):
-        return " | ".join(str(c).ljust(col_w[i]) for i, c in enumerate(cells))
-
-    hrow = row_str(headers)
-    sep = "-+-".join("-" * w for w in col_w)
-    rows = [hrow, sep]
-    for t in tools:
-        extra = t.extra
-        rows.append(row_str([
-            t.name,
-            "\u2705" if extra.get("baits") else "\u274c",
-            extra.get("usage", "?"),
-            len(extra.get("buffs") or []),
-            len(extra.get("debuffs") or []),
-        ]))
-    embed.description = "```\n" + "\n".join(rows) + "\n```"
-    embed.description = embed.description[:4096]
-    return embed
-
-
 def build_bait_embed(bait) -> discord.Embed:
     extra = bait.extra
     embed = discord.Embed(title=bait.name, color=BAIT_COLOR)
@@ -554,29 +477,13 @@ def build_bait_embed(bait) -> discord.Embed:
     if explanation:
         embed.add_field(name="\U0001f4a1 What It Does", value=explanation, inline=False)
 
-    idle = "\u2705" if extra.get("idle") else "\u274c"
+    idle = "✅" if extra.get("idle") else "❌"
     usage = extra.get("usage", "?")
     embed.add_field(name="\U0001f916 Idle", value=idle, inline=True)
     embed.add_field(name="\U0001f4ca Uses", value=str(usage), inline=True)
 
     embed.set_footer(text=f"Internal ID: {bait.id}")
     return embed
-
-
-def build_bait_compare_embed(bait1, bait2) -> discord.Embed:
-    e1, e2 = bait1.extra, bait2.extra
-    u1, u2 = e1.get("usage", 0), e2.get("usage", 0)
-    rows = [
-        ("Idle OK", "\u2705" if e1.get("idle") else "\u274c", "\u2705" if e2.get("idle") else "\u274c"),
-        ("Usage", str(u1) + (" \u2713" if u1 > u2 else ""), str(u2) + (" \u2713" if u2 > u1 else "")),
-        ("Effect", (e1.get("explanation") or "\u2014")[:60], (e2.get("explanation") or "\u2014")[:60]),
-    ]
-    return build_compare_base(
-        title=f"\u2694\ufe0f  {bait1.name}  vs  {bait2.name}",
-        author_text="\u2694\ufe0f Bait Compare",
-        col1_name=bait1.name, col2_name=bait2.name,
-        rows=rows,
-    )
 
 
 def build_npc_embed(npc) -> discord.Embed:
@@ -646,12 +553,11 @@ def build_profile_embed(user_row, member, dc=None) -> discord.Embed:
     if hasattr(member, "display_avatar") and member.display_avatar:
         embed.set_thumbnail(url=str(member.display_avatar.url))
 
-    rod = user_row["fishing_rod"] or "Wooden Rod"
     tool = user_row["current_tool"] or "None"
     bait = user_row["current_bait"] or "None"
     embed.add_field(
         name="\U0001f3a3 SETUP",
-        value=f"Rod: **{rod}**  ·  Tool: **{tool}**  ·  Bait: **{bait}**",
+        value=f"Tool: **{tool}**  ·  Bait: **{bait}**",
         inline=False,
     )
 
@@ -678,11 +584,10 @@ def build_profile_embed(user_row, member, dc=None) -> discord.Embed:
         inline=False,
     )
 
-    weather = user_row["current_weather"] or "None"
     event = user_row["current_event"] or "None"
     embed.add_field(
         name="\U0001f324️ ENVIRONMENT",
-        value=f"Weather: **{weather}**  ·  Event: **{event}**",
+        value=f"Event: **{event}**",
         inline=False,
     )
 

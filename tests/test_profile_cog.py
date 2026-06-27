@@ -84,13 +84,13 @@ def test_build_profile_embed_color():
 
 def test_build_profile_embed_setup_field():
     from utils.embeds import build_profile_embed
-    row = make_user_row(fishing_rod="Lava Rod", current_tool="Harpoon", current_bait="Glitter Bait")
+    row = make_user_row(current_tool="Harpoon", current_bait="Glitter Bait")
     member = make_member()
     embed = build_profile_embed(row, member)
     setup_field = next(f for f in embed.fields if "SETUP" in f.name)
-    assert "Lava Rod" in setup_field.value
     assert "Harpoon" in setup_field.value
     assert "Glitter Bait" in setup_field.value
+    assert "Rod" not in setup_field.value
 
 def test_build_profile_embed_skills_shows_no_skills_when_none():
     from utils.embeds import build_profile_embed
@@ -121,12 +121,12 @@ def test_build_profile_embed_unlocks_field():
 
 def test_build_profile_embed_environment_field():
     from utils.embeds import build_profile_embed
-    row = make_user_row(current_weather="Rainy", current_event="Fishing Festival")
+    row = make_user_row(current_event="Fishing Festival")
     member = make_member()
     embed = build_profile_embed(row, member)
     env_field = next(f for f in embed.fields if "ENV" in f.name.upper())
-    assert "Rainy" in env_field.value
     assert "Fishing Festival" in env_field.value
+    assert "Weather" not in env_field.value
 
 def test_build_profile_embed_favourites_field():
     from utils.embeds import build_profile_embed

@@ -3,19 +3,17 @@ from utils.fish_data import creature_eligible, RARITY_WEIGHTS
 
 
 def score_setup(dc, tool_id: str, location_id: str, hour: int) -> float:
-    """Expected rare-quality yield for a tool+location+hour combo.
+    """Expected rare-quality score for a tool+location+hour combo.
 
-    Weights each eligible fish by RARITY_WEIGHTS × tools[tool_id].max so that
-    tools catching more fish per cast rank above tools with identical eligibility
-    but lower catch quantity (e.g. Harpoon > Bare Hand for the same pool).
+    Weights each eligible fish by RARITY_WEIGHTS (rarity desirability only —
+    per-cast quantity is intentionally excluded so tool ranking reflects what
+    fish are available, not raw catch count).
     """
     total = 0.0
     for fish in dc.fish_by_id.values():
         if creature_eligible(fish, location_id, tool_id, hour, bosses=False, ignore_time=False):
             rarity = fish.extra.get("rarity", "")
-            tool_compat = (fish.extra.get("tools") or {}).get(tool_id) or {}
-            qty = tool_compat.get("max", 1) or 1
-            total += RARITY_WEIGHTS.get(rarity, 0.0) * qty
+            total += RARITY_WEIGHTS.get(rarity, 0.0)
     return total
 
 

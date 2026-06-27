@@ -3,12 +3,13 @@ from datetime import datetime, timezone, time as dt_time
 from typing import Any
 
 RARITY_COLORS: dict[str, int] = {
-    "Common":        0x8e9297,
-    "Uncommon":      0x57f287,
-    "Rare":          0x5865f2,
-    "Very Rare":     0xeb459e,
-    "Absurdly Rare": 0xed4245,
-    "Mythical":      0xffd700,
+    "Absurdly Common": 0xb9bbbe,
+    "Very Common":     0x8e9297,
+    "Common":          0x57f287,
+    "Regular":         0x5865f2,
+    "Rare":            0xfee75c,
+    "Very Rare":       0xeb459e,
+    "Absurdly Rare":   0xed4245,
 }
 BOSS_COLOR     = 0xff6b35
 LOCATION_COLOR = 0x00b4d8
@@ -18,15 +19,16 @@ NPC_COLOR      = 0xb967ff
 COMPARE_COLOR  = 0x5865f2
 
 RARITY_EMOJI: dict[str, str] = {
-    "Common":        "⚪",
-    "Uncommon":      "🟢",
-    "Rare":          "🔵",
-    "Very Rare":     "🟣",
-    "Absurdly Rare": "🔴",
-    "Mythical":      "🌟",
+    "Absurdly Common": "⚫",
+    "Very Common":     "⚪",
+    "Common":          "🟢",
+    "Regular":         "🔵",
+    "Rare":            "🟡",
+    "Very Rare":       "🟣",
+    "Absurdly Rare":   "🔴",
 }
 
-RARITY_ORDER = ["Common", "Uncommon", "Rare", "Very Rare", "Absurdly Rare", "Mythical"]
+RARITY_ORDER = ["Absurdly Common", "Very Common", "Common", "Regular", "Rare", "Very Rare", "Absurdly Rare"]
 
 
 def rarity_color(rarity: str, boss: bool = False) -> int:

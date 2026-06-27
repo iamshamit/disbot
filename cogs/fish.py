@@ -6,7 +6,6 @@ from discord.ext import commands
 from utils.embeds import (
     EmbedBuilder,
     build_fish_embed,
-    build_fish_compare_embed,
     build_peak_hours_embed,
     build_fishlist_embed,
 )
@@ -16,35 +15,6 @@ from utils.formatters import rarity_rank
 _PRELOAD_GUARD_MSG = "⏳ Data is still loading, please try again in a moment."
 _NOT_FOUND_MSG = "❌ No fish named **{name}** found. Try `/fishlist` to browse."
 
-
-class FishCompareModal(discord.ui.Modal, title="Compare Fish"):
-    second_fish: discord.ui.TextInput = discord.ui.TextInput(
-        label="Second fish name",
-        placeholder="e.g. Koi",
-        min_length=1,
-        max_length=60,
-    )
-
-    def __init__(self, first_creature, dank_client, db=None, user_id=None):
-        super().__init__()
-        self.first = first_creature
-        self.dc = dank_client
-        self.db = db
-        self.user_id = user_id
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        name = self.second_fish.value.strip()
-        second = self.dc.get_fish(name)
-        if second is None:
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Not found", _NOT_FOUND_MSG.format(name=name)),
-                ephemeral=True,
-            )
-            return
-        await interaction.response.edit_message(
-            embed=build_fish_compare_embed(self.first, second, self.dc),
-            view=BackToFishView(creature=self.first, dank_client=self.dc, db=self.db, user_id=self.user_id),
-        )
 
 
 class BackToFishView(discord.ui.View):
@@ -143,12 +113,6 @@ class FishView(discord.ui.View):
         max_body = max(0, 4096 - len(detail_text))
         embed.description = (embed.description or "")[:max_body] + detail_text
         await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="⚔️ Compare", style=discord.ButtonStyle.primary, row=1)
-    async def compare_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(
-            FishCompareModal(self.creature, self.dc, db=self.db, user_id=self.user_id)
-        )
 
     @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def fav_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -249,14 +213,15 @@ class FishListView(DynamicPaginationView):
         row=2,
         options=[
             discord.SelectOption(label="All", value="All", default=True),
-            discord.SelectOption(label="⚪ Common", value="Common"),
-            discord.SelectOption(label="🟢 Uncommon", value="Uncommon"),
-            discord.SelectOption(label="🔵 Rare", value="Rare"),
+            discord.SelectOption(label="⚫ Absurdly Common", value="Absurdly Common"),
+            discord.SelectOption(label="⚪ Very Common", value="Very Common"),
+            discord.SelectOption(label="🟢 Common", value="Common"),
+            discord.SelectOption(label="🔵 Regular", value="Regular"),
+            discord.SelectOption(label="🟡 Rare", value="Rare"),
             discord.SelectOption(label="🟣 Very Rare", value="Very Rare"),
             discord.SelectOption(label="🔴 Absurdly Rare", value="Absurdly Rare"),
-            discord.SelectOption(label="🌟 Mythical", value="Mythical"),
             discord.SelectOption(label="👑 Boss only", value="Boss"),
-            discord.SelectOption(label="✨ Mythical flag only", value="Mythical only"),
+            discord.SelectOption(label="✨ Mythical only", value="Mythical only"),
         ],
     )
     async def rarity_select(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -318,35 +283,6 @@ class FishCog(commands.Cog):
         view = FishListView(self.bot.dank_client)
         await interaction.response.send_message(embed=view.build_embed(), view=view)
         view.message = await interaction.original_response()
-
-    @app_commands.command(name="fishcompare", description="Compare two fish side by side")
-    @app_commands.describe(fish1="First fish", fish2="Second fish")
-    async def fishcompare(self, interaction: discord.Interaction, fish1: str, fish2: str):
-        if not self._guard():
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Loading", _PRELOAD_GUARD_MSG), ephemeral=True
-            )
-            return
-        c1 = self.bot.dank_client.get_fish(fish1)
-        c2 = self.bot.dank_client.get_fish(fish2)
-        if c1 is None:
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Not found", _NOT_FOUND_MSG.format(name=fish1)), ephemeral=True
-            )
-            return
-        if c2 is None:
-            await interaction.response.send_message(
-                embed=EmbedBuilder.error("Not found", _NOT_FOUND_MSG.format(name=fish2)), ephemeral=True
-            )
-            return
-        await interaction.response.send_message(embed=build_fish_compare_embed(c1, c2, self.bot.dank_client))
-
-    @fishcompare.autocomplete("fish1")
-    @fishcompare.autocomplete("fish2")
-    async def fishcompare_autocomplete(self, interaction: discord.Interaction, current: str):
-        if not self.bot.autocomplete:
-            return []
-        return self.bot.autocomplete.fish_choices(current)
 
 
 async def setup(bot: commands.Bot):
