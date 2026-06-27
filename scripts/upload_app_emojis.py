@@ -145,7 +145,7 @@ async def main() -> None:
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(mapping, f, indent=2)
-    print(f"\nSaved {len(mapping)} entries → {OUT_PATH}")
+    print(f"\nSaved {len(mapping)} entries -> {OUT_PATH}")
 
 
 if __name__ == "__main__":
