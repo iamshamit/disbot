@@ -61,7 +61,6 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
     lines = []
     for entry in table[:20]:
         chance = entry.get("chance", 0)
-        base = entry.get("baseChance", chance)
         val = entry.get("value", {})
         if val.get("type") == "fish-creature":
             cid = val.get("creatureID", "")
@@ -81,7 +80,7 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
             name = f"{qty}× {item_name}" if item_name else "Misc Loot"
         else:
             name = "Misc Loot"
-        lines.append(f"`{chance:5.1f}%` (base `{base:.1f}%`) {name}")
+        lines.append(f"`{chance:5.1f}%` {name}")
     if lines:
         embed.add_field(name="📊 Catch Table", value="\n".join(lines), inline=False)
 
