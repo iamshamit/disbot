@@ -98,7 +98,12 @@ class ListenerCog(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         if message.author.id != DANK_MEMER_ID:
             return
-        await message.channel.send(f"[dbg] on_message: embeds={len(message.embeds)}", delete_after=15)
+        content_preview = (message.content or "")[:60]
+        comp_types = [c.type.value if hasattr(c, "type") else str(type(c)) for c in message.components]
+        await message.channel.send(
+            f"[dbg] embeds={len(message.embeds)} components={comp_types} content=`{content_preview!r}`",
+            delete_after=20,
+        )
         await self._process(message)
 
     @commands.Cog.listener()
