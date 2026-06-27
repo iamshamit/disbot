@@ -45,8 +45,6 @@ class FishView(discord.ui.View):
         self.db = db
         self.user_id = user_id
         self._is_faved = is_faved
-        if not (creature.extra.get("variants") or []):
-            self.variants_btn.disabled = True
         # Configure fav button
         fav_btn = next(
             item for item in self.children
@@ -80,39 +78,6 @@ class FishView(discord.ui.View):
     async def peak_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         view = BackToFishView(self.creature, self.dc, db=self.db, user_id=self.user_id)
         await interaction.response.edit_message(embed=build_peak_hours_embed(self.creature), view=view)
-
-    @discord.ui.button(label="🔮 Variants", style=discord.ButtonStyle.secondary, row=0)
-    async def variants_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = build_fish_embed(self.creature, self.dc)
-        variants = self.creature.extra.get("variants") or []
-        parts = []
-        for v in variants:
-            if isinstance(v, dict):
-                name = v.get("name", "Unknown")
-                chance = v.get("chance", "?")
-                parts.append(f"✨ **{name}** — {chance}%")
-            else:
-                parts.append(f"✨ {v}")
-        extra_text = "\n\n**🔮 VARIANTS DETAIL**\n" + ("\n".join(parts) or "No data.")
-        max_body = max(0, 4096 - len(extra_text))
-        embed.description = (embed.description or "")[:max_body] + extra_text
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="📍 Locations", style=discord.ButtonStyle.secondary, row=0)
-    async def locations_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = build_fish_embed(self.creature, self.dc)
-        loc_ids = self.creature.extra.get("locations") or []
-        lines = []
-        for lid in loc_ids:
-            loc = self.dc.location_by_id.get(lid)
-            if loc:
-                fail = loc.extra.get("failChance", 0) if hasattr(loc.extra, "get") else 0
-                lines.append(f"📍 **{loc.name}**  ·  💀 Fail {fail}%")
-        detail = "\n".join(lines) if lines else "No location data."
-        detail_text = f"\n\n**📍 LOCATION DETAILS**\n{detail}"
-        max_body = max(0, 4096 - len(detail_text))
-        embed.description = (embed.description or "")[:max_body] + detail_text
-        await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="⭐ Favourite", style=discord.ButtonStyle.secondary, disabled=True, row=1)
     async def fav_btn(self, interaction: discord.Interaction, button: discord.ui.Button):

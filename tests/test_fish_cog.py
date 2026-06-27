@@ -171,30 +171,6 @@ async def test_fishlist_sends_embed_and_view():
 # FishView
 # ---------------------------------------------------------------------------
 
-def test_fishview_variants_btn_disabled_when_no_variants():
-    from cogs.fish import FishView
-    creature = make_creature(variants=[])
-    dc = make_mock_dank_client()
-    view = FishView(creature, dc)
-    variants_btn = next(
-        item for item in view.children
-        if isinstance(item, discord.ui.Button) and "Variants" in item.label
-    )
-    assert variants_btn.disabled is True
-
-
-def test_fishview_variants_btn_enabled_when_variants_exist():
-    from cogs.fish import FishView
-    creature = make_creature(variants=[{"name": "Chroma", "chance": 2}])
-    dc = make_mock_dank_client()
-    view = FishView(creature, dc)
-    variants_btn = next(
-        item for item in view.children
-        if isinstance(item, discord.ui.Button) and "Variants" in item.label
-    )
-    assert variants_btn.disabled is False
-
-
 def test_fishview_has_expected_buttons():
     from cogs.fish import FishView
     creature = make_creature()
@@ -203,7 +179,6 @@ def test_fishview_has_expected_buttons():
     labels = [item.label for item in view.children if isinstance(item, discord.ui.Button)]
     assert any("Peak Hours" in l for l in labels)
     assert any("Delete" in l for l in labels)
-    assert any("Locations" in l for l in labels)
 
 
 def test_fishview_timeout_is_300():
@@ -251,37 +226,6 @@ async def test_fishview_peak_btn_edits_with_peak_embed():
     embed = call_kwargs.kwargs["embed"]
     assert "Peak Hours" in embed.title
 
-
-@pytest.mark.asyncio
-@pytest.mark.asyncio
-async def test_fishview_locations_btn_shows_location_detail():
-    from cogs.fish import FishView
-    creature = make_creature(locations=["sunken_ship"])
-    location = make_location(id="sunken_ship", name="Sunken Ship", failChance=15)
-    dc = make_mock_dank_client(creatures=[creature], locations=[location])
-    view = FishView(creature, dc)
-    interaction = make_interaction()
-    await view.locations_btn.callback(interaction)
-    interaction.response.edit_message.assert_called_once()
-    call_kwargs = interaction.response.edit_message.call_args
-    embed = call_kwargs.kwargs["embed"]
-    assert "LOCATION DETAILS" in embed.description
-    assert "Sunken Ship" in embed.description
-
-
-@pytest.mark.asyncio
-async def test_fishview_variants_btn_shows_variants_detail():
-    from cogs.fish import FishView
-    creature = make_creature(variants=[{"name": "Chroma", "chance": 2}])
-    dc = make_mock_dank_client(creatures=[creature])
-    view = FishView(creature, dc)
-    interaction = make_interaction()
-    await view.variants_btn.callback(interaction)
-    interaction.response.edit_message.assert_called_once()
-    call_kwargs = interaction.response.edit_message.call_args
-    embed = call_kwargs.kwargs["embed"]
-    assert "VARIANTS DETAIL" in embed.description
-    assert "Chroma" in embed.description
 
 
 @pytest.mark.asyncio
