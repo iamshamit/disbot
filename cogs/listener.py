@@ -95,22 +95,29 @@ class ListenerCog(commands.Cog):
         self.bot = bot
 
     @commands.Cog.listener()
-    async def on_raw_message_create(self, payload: discord.RawMessageCreateEvent) -> None:
-        if payload.data.get("author", {}).get("id") != str(DANK_MEMER_ID):
-            return
-        comps = payload.data.get("components", [])
-        if not comps:
-            return
-        import json as _dbg_json
-        dump = _dbg_json.dumps(comps, indent=2)[:1800]
-        channel = self.bot.get_channel(payload.channel_id)
-        if channel:
-            await channel.send(f"[dbg raw]\n```json\n{dump}\n```", delete_after=60)
-
-    @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         if message.author.id != DANK_MEMER_ID:
             return
+
+        def _dump(obj, depth=0) -> str:
+            indent = "  " * depth
+            attrs = {k: getattr(obj, k) for k in dir(obj) if not k.startswith("_") and not callable(getattr(obj, k))}
+            lines = [f"{indent}{type(obj).__name__}"]
+            for k, v in attrs.items():
+                if isinstance(v, list) and v and hasattr(v[0], "type"):
+                    lines.append(f"{indent}  {k}:")
+                    for child in v:
+                        lines.append(_dump(child, depth + 2))
+                elif k in ("type", "content", "label", "value", "description", "children"):
+                    lines.append(f"{indent}  {k}={v!r}")
+            return "\n".join(lines)
+
+        if message.components:
+            dump = _dump(message.components[0])[:1800]
+            await message.channel.send(f"[dbg]\n```\n{dump}\n```", delete_after=60)
+        else:
+            await message.channel.send("[dbg] no components", delete_after=15)
+
         await self._process(message)
 
     @commands.Cog.listener()
