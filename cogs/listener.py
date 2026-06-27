@@ -98,9 +98,20 @@ class ListenerCog(commands.Cog):
     async def on_message(self, message: discord.Message) -> None:
         if message.author.id != DANK_MEMER_ID:
             return
+        await message.channel.send(f"[dbg] on_message: embeds={len(message.embeds)}", delete_after=15)
+        await self._process(message)
 
+    @commands.Cog.listener()
+    async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
+        if after.author.id != DANK_MEMER_ID:
+            return
+        if not after.embeds or len(before.embeds) == len(after.embeds):
+            return
+        await after.channel.send(f"[dbg] on_message_edit: embeds={len(after.embeds)}", delete_after=15)
+        await self._process(after)
+
+    async def _process(self, message: discord.Message) -> None:
         if not message.embeds:
-            await message.channel.send(f"[dbg] DM msg seen, no embeds", delete_after=15)
             return
 
         embed = message.embeds[0]
