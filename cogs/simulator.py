@@ -83,7 +83,10 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
             name = "Misc Loot"
         lines.append(f"`{chance:5.1f}%` (base `{base:.1f}%`) {name}")
     if lines:
-        embed.add_field(name="📊 Catch Table", value="\n".join(lines), inline=False)
+        value = "\n".join(lines)
+        if len(value) > 1024:
+            value = value[:1021] + "…"
+        embed.add_field(name="📊 Catch Table", value=value, inline=False)
 
     var_lines = []
     for cid, var_list in data.get("variants", {}).items():
