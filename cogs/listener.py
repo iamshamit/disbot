@@ -1,5 +1,6 @@
-"""Listens for Dank Memer bot messages and auto-syncs fishing equipment to user profiles."""
+"""Listens for Dank Memer bot messages and auto-syncs fishing data to user profiles."""
 from __future__ import annotations
+import json as _json
 import logging
 import re
 
@@ -10,10 +11,16 @@ logger = logging.getLogger(__name__)
 
 DANK_MEMER_ID = 270904126974590976
 
-# Matches equipment lines: `N / M` <progress emotes...> <item emote> Item Name
+# Fishing embed: `N / M` <progress emotes> <item emote> Item Name
 _EQUIP_RE = re.compile(r'`[^`]+`\s*(?:<:[^>]+>)+\s+<:[^>]+>\s+(.+)')
-# Matches the location line that follows **Current Location:**
+# Fishing embed: location line after **Current Location:**
 _LOC_RE = re.compile(r'\*\*Current Location:\*\*\n<:[^>]+>\s+(.+)')
+
+# Skills embed: lines that start with one or more custom emotes followed by the skill name
+_SKILL_LINE_RE = re.compile(r'^(?:<:[^>]+>)+\s+(.+?)\s*$', re.MULTILINE)
+
+_ROMAN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5,
+          "VI": 6, "VII": 7, "VIII": 8, "IX": 9}
 
 
 def _parse_fishing_embed(description: str) -> dict[str, str | None]:
@@ -26,6 +33,41 @@ def _parse_fishing_embed(description: str) -> dict[str, str | None]:
     }
 
 
+def _parse_skills_embed(description: str, dc) -> dict[str, int]:
+    """Parse Fish Skills embed into {base_id: tier}. Tier 0 entries are omitted."""
+    # Build name → base lookup from game data
+    name_to_base: dict[str, str] = {}
+    for skills in dc.skill_categories.values():
+        for s in skills:
+            name_to_base[s["name"].lower()] = s["base"]
+
+    result: dict[str, int] = {}
+    for m in _SKILL_LINE_RE.finditer(description):
+        raw = m.group(1).strip()
+        # Split trailing Roman numeral (tier) from name
+        parts = raw.rsplit(" ", 1)
+        if len(parts) == 2 and parts[1] in _ROMAN:
+            name, tier = parts[0], _ROMAN[parts[1]]
+        else:
+            name, tier = raw, 0
+
+        base = name_to_base.get(name.lower())
+        if base and tier > 0:
+            result[base] = tier
+
+    return result
+
+
+def _get_user_id(message: discord.Message) -> str | None:
+    if getattr(message, "interaction", None) and message.interaction.user:
+        return str(message.interaction.user.id)
+    if message.reference and message.reference.resolved:
+        ref = message.reference.resolved
+        if isinstance(ref, discord.Message) and not ref.author.bot:
+            return str(ref.author.id)
+    return None
+
+
 class ListenerCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -36,40 +78,34 @@ class ListenerCog(commands.Cog):
             return
         if not message.embeds:
             return
+
         embed = message.embeds[0]
-        if embed.title != "Fishing":
-            return
-        if not embed.description:
-            return
-
-        # Identify the user who triggered the command
-        user_id: str | None = None
-        if getattr(message, "interaction", None) and message.interaction.user:
-            user_id = str(message.interaction.user.id)
-        elif message.reference and message.reference.resolved:
-            ref = message.reference.resolved
-            if isinstance(ref, discord.Message) and not ref.author.bot:
-                user_id = str(ref.author.id)
-
-        if not user_id:
-            return
-
         db = self.bot.db
         dc = self.bot.dank_client
         if not db or not dc or not dc.fish_by_id:
             return
 
-        parsed = _parse_fishing_embed(embed.description)
+        if embed.title == "Fishing" and embed.description:
+            await self._sync_fishing(message, embed.description, db, dc)
 
+        elif embed.title == "Fish Skills" and embed.description:
+            await self._sync_skills(message, embed.description, db, dc)
+
+    async def _sync_fishing(self, message, description: str, db, dc) -> None:
+        user_id = _get_user_id(message)
+        if not user_id:
+            return
+
+        parsed = _parse_fishing_embed(description)
         updates: dict[str, str] = {}
         if parsed["tool"]:
-            tool = dc.tool_by_name.get(parsed["tool"].lower())
-            if tool:
-                updates["current_tool"] = tool.name
+            t = dc.tool_by_name.get(parsed["tool"].lower())
+            if t:
+                updates["current_tool"] = t.name
         if parsed["bait"]:
-            bait = dc.bait_by_name.get(parsed["bait"].lower())
-            if bait:
-                updates["current_bait"] = bait.name
+            b = dc.bait_by_name.get(parsed["bait"].lower())
+            if b:
+                updates["current_bait"] = b.name
         if parsed["location"]:
             loc = dc.location_by_name.get(parsed["location"].lower())
             if loc:
@@ -77,13 +113,29 @@ class ListenerCog(commands.Cog):
 
         if not updates:
             return
-
         try:
             await db.get_or_create_user(user_id)
             await db.update_user(user_id, **updates)
             logger.info("Auto-synced fishing setup for user %s: %s", user_id, updates)
         except Exception:
             logger.exception("Failed to auto-sync fishing data for user %s", user_id)
+
+    async def _sync_skills(self, message, description: str, db, dc) -> None:
+        user_id = _get_user_id(message)
+        if not user_id:
+            return
+        if not dc.skill_categories:
+            return
+
+        skills = _parse_skills_embed(description, dc)
+        if not skills:
+            return
+        try:
+            await db.get_or_create_user(user_id)
+            await db.update_user(user_id, skills=_json.dumps(skills))
+            logger.info("Auto-synced %d skills for user %s", len(skills), user_id)
+        except Exception:
+            logger.exception("Failed to auto-sync skills for user %s", user_id)
 
 
 async def setup(bot: commands.Bot) -> None:
