@@ -92,6 +92,11 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
     return embed
 
 
+def _utc_hour_ts(hour: int) -> int:
+    now = datetime.now(timezone.utc)
+    return int(now.replace(hour=hour, minute=0, second=0, microsecond=0).timestamp())
+
+
 def build_fish_peak_embed(fish_id: str, results: list, dc) -> discord.Embed:
     """Render a per-fish 24-hour catch% sweep, flagging the peak hour(s)."""
     fish_name = dc.fish_by_id[fish_id].name if fish_id in dc.fish_by_id else fish_id
@@ -118,13 +123,13 @@ def build_fish_peak_embed(fish_id: str, results: list, dc) -> discord.Embed:
     varies = best_chance != worst_chance
 
     lines = [
-        f"`{h:02d}:00` `{c:5.1f}%`{' ⭐' if c == best_chance else ''}"
+        f"<t:{_utc_hour_ts(h)}:t> `{c:5.1f}%`{' ⭐' if c == best_chance else ''}"
         for h, c in hourly
     ]
     embed = discord.Embed(title=f"📈 {fish_name}", color=0x5865F2)
     embed.set_author(name="🎣 Peak Hours")
     embed.description = (
-        f"Peak: **{best_hour:02d}:00 UTC** — **{best_chance:.1f}%**\n"
+        f"Peak: **<t:{_utc_hour_ts(best_hour)}:t>** — **{best_chance:.1f}%**\n"
         f"Low: **{worst_chance:.1f}%**"
         if varies else
         f"Catch chance is constant at **{best_chance:.1f}%** (no time variation)."
