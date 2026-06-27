@@ -65,7 +65,7 @@ def _parse_fishing_text(text: str) -> dict[str, str | None]:
         elif 'Active Events:' in s:
             in_equip, in_loc = False, False
         elif in_equip and re.search(r'\d+\s*/\s*\d+', s):
-            name = _strip_emotes(re.sub(r'\d+\s*/\s*\d+', '', s))
+            name = _strip_emotes(re.sub(r'`[^`]*`|\d+\s*/\s*\d+', '', s))
             if name:
                 equip.append(name)
         elif in_loc and s:
