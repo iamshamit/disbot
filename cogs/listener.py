@@ -11,6 +11,8 @@ import re
 import discord
 from discord.ext import commands
 
+import utils.app_emojis as _ae
+
 logger = logging.getLogger(__name__)
 
 DANK_MEMER_ID = 270904126974590976
@@ -180,11 +182,24 @@ class ListenerCog(commands.Cog):
             await db.get_or_create_user(user_id)
             await db.update_user(user_id, **updates)
             logger.info("Auto-synced fishing setup for user %s: %s", user_id, updates)
-            parts = [f"**Tool:** {updates['current_tool']}" if "current_tool" in updates else None,
-                     f"**Bait:** {updates['current_bait']}" if "current_bait" in updates else None,
-                     f"**Location:** {updates['favorite_location']}" if "favorite_location" in updates else None]
-            summary = "  ·  ".join(p for p in parts if p)
-            await message.channel.send(f"✅ Synced your fishing setup — {summary}", delete_after=6)
+            embed = discord.Embed(title="Fishing Setup Synced", color=0x57F287)
+            if "current_tool" in updates:
+                tool_obj = dc.tool_by_name.get(updates["current_tool"].lower())
+                emoji = _ae.get(tool_obj.id) if tool_obj else None
+                label = f"{emoji} " if emoji else ""
+                embed.add_field(name="Tool", value=f"{label}{updates['current_tool']}", inline=True)
+            if "current_bait" in updates:
+                bait_obj = dc.bait_by_name.get(updates["current_bait"].lower())
+                emoji = _ae.get(bait_obj.id) if bait_obj else None
+                label = f"{emoji} " if emoji else ""
+                embed.add_field(name="Bait", value=f"{label}{updates['current_bait']}", inline=True)
+            if "favorite_location" in updates:
+                loc_obj = dc.location_by_name.get(updates["favorite_location"].lower())
+                emoji = _ae.get(loc_obj.id) if loc_obj else None
+                label = f"{emoji} " if emoji else ""
+                embed.add_field(name="Location", value=f"{label}{updates['favorite_location']}", inline=True)
+            embed.set_footer(text="Auto-synced from pls f catch")
+            await message.channel.send(embed=embed, delete_after=8)
         except Exception:
             logger.exception("Failed to auto-sync fishing data for user %s", user_id)
 
@@ -202,7 +217,30 @@ class ListenerCog(commands.Cog):
             await db.get_or_create_user(user_id)
             await db.update_user(user_id, skills=_json.dumps(skills))
             logger.info("Auto-synced %d skills for user %s", len(skills), user_id)
-            await message.channel.send(f"✅ Synced {len(skills)} skills to your profile", delete_after=6)
+
+            # build skill name lookup: base -> skill dict
+            base_to_skill: dict[str, dict] = {}
+            for cat_skills in dc.skill_categories.values():
+                for s in cat_skills:
+                    base_to_skill[s["base"]] = s
+
+            lines: list[str] = []
+            for base, tier in skills.items():
+                s = base_to_skill.get(base)
+                if not s:
+                    continue
+                emoji = _ae.get(base)
+                prefix = f"{emoji} " if emoji else ""
+                roman = next(k for k, v in _ROMAN.items() if v == tier)
+                lines.append(f"{prefix}**{s['name']}** {roman}")
+
+            embed = discord.Embed(
+                title="Fish Skills Synced",
+                description="\n".join(lines) if lines else f"{len(skills)} skills updated",
+                color=0x57F287,
+            )
+            embed.set_footer(text="Auto-synced from pls f skills")
+            await message.channel.send(embed=embed, delete_after=10)
         except Exception:
             logger.exception("Failed to auto-sync skills for user %s", user_id)
 
