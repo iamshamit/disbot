@@ -82,7 +82,20 @@ def build_sim_results_embed(data: dict, state: dict, dc) -> discord.Embed:
             name = "Misc Loot"
         lines.append(f"`{chance:5.1f}%` {name}")
     if lines:
-        embed.add_field(name="📊 Catch Table", value="\n".join(lines), inline=False)
+        chunks, cur, cur_len = [], [], 0
+        for line in lines:
+            added = len(line) + (1 if cur else 0)
+            if cur_len + added > 1024:
+                chunks.append("\n".join(cur))
+                cur, cur_len = [line], len(line)
+            else:
+                cur.append(line)
+                cur_len += added
+        if cur:
+            chunks.append("\n".join(cur))
+        embed.add_field(name="📊 Catch Table", value=chunks[0], inline=False)
+        for chunk in chunks[1:]:
+            embed.add_field(name="​", value=chunk, inline=False)
 
     return embed
 
