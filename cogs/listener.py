@@ -150,23 +150,16 @@ class ListenerCog(commands.Cog):
             return
 
         if h == "Fishing":
-            await message.channel.send(f"[dbg] matched Fishing", delete_after=10)
             await self._sync_fishing(message, text, db, dc)
         elif h == "Fish Skills":
-            await message.channel.send(f"[dbg] matched Fish Skills", delete_after=10)
             await self._sync_skills(message, text, db, dc)
-        else:
-            await message.channel.send(f"[dbg] heading=`{h!r}` no match", delete_after=10)
 
     async def _sync_fishing(self, message, text: str, db, dc) -> None:
         user_id = await _get_user_id(message)
-        await message.channel.send(f"[dbg] user_id={user_id!r}", delete_after=10)
         if not user_id:
             return
 
-        await message.channel.send(f"[dbg] text={text[50:250]!r}", delete_after=30)
         parsed = _parse_fishing_text(text)
-        await message.channel.send(f"[dbg] parsed={parsed}", delete_after=10)
         updates: dict[str, str] = {}
         if parsed["tool"]:
             t = dc.tool_by_name.get(parsed["tool"].lower())
@@ -181,7 +174,6 @@ class ListenerCog(commands.Cog):
             if loc:
                 updates["favorite_location"] = loc.name
 
-        await message.channel.send(f"[dbg] updates={updates}", delete_after=10)
         if not updates:
             return
         try:
@@ -198,16 +190,12 @@ class ListenerCog(commands.Cog):
 
     async def _sync_skills(self, message, text: str, db, dc) -> None:
         user_id = await _get_user_id(message)
-        await message.channel.send(f"[dbg skills] user_id={user_id!r}", delete_after=15)
         if not user_id:
             return
         if not dc.skill_categories:
-            await message.channel.send("[dbg skills] no skill_categories", delete_after=15)
             return
 
-        await message.channel.send(f"[dbg skills] text={text[50:300]!r}", delete_after=30)
         skills = _parse_skills_text(text, dc)
-        await message.channel.send(f"[dbg skills] found {len(skills)} skills: {list(skills.keys())[:5]}", delete_after=15)
         if not skills:
             return
         try:
