@@ -179,7 +179,10 @@ class ListenerCog(commands.Cog):
         if not updates:
             return
         try:
-            await db.get_or_create_user(user_id)
+            row = await db.get_or_create_user(user_id)
+            updates = {k: v for k, v in updates.items() if row[k] != v}
+            if not updates:
+                return
             await db.update_user(user_id, **updates)
             logger.info("Auto-synced fishing setup for user %s: %s", user_id, updates)
             embed = discord.Embed(title="Fishing Setup Synced", color=0x57F287)
@@ -214,8 +217,11 @@ class ListenerCog(commands.Cog):
         if not skills:
             return
         try:
-            await db.get_or_create_user(user_id)
-            await db.update_user(user_id, skills=_json.dumps(skills))
+            row = await db.get_or_create_user(user_id)
+            new_skills_json = _json.dumps(skills)
+            if row["skills"] == new_skills_json:
+                return
+            await db.update_user(user_id, skills=new_skills_json)
             logger.info("Auto-synced %d skills for user %s", len(skills), user_id)
 
             # build skill name lookup: base -> skill dict
